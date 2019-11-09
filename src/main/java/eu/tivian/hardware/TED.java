@@ -1,5 +1,9 @@
 package eu.tivian.hardware;
 
+// FPGATED clocks
+//  28.63636 MHz for NTSC
+//  28.28800 MHz for PAL
+
 // MOS 8360
 // based on "TED 7360R0 Preliminary Data Sheet" and FPGATED project
 //      https://www.pagetable.com/docs/ted/TED%207360R0%20Preliminary%20Data%20Sheet.pdf
@@ -26,4 +30,28 @@ public class TED {
     //public final Pin luma; // pin 23
     // GND pin 24
     //public final Pin sound; // pin 33
+
+    public TED() {
+        phiIn.onChange(lvl -> step());
+    }
+
+    public void step() {
+
+    }
 }
+
+/*
+ 1: ras<=1;
+    cas<=1;
+    mux<=1;
+ 6: ras<=0;			// RAS goes low 35ns before MUX (20ns on real system)
+ 7: mux<=0;			// MUX goes low when double phi changes to high at half double clock cycle, CS0,CS1 changes together with MUX when needed
+ 8: if (rw & cs0 & cs1 & ~io & ~tedreg)		// when read cycle, CAS goes low 35ns after MUX (40ns on real system)
+     cas<=0;
+11:	if (~rw & ~io & ~tedreg)					// when write cycle, CAS goes low 160ns after MUX
+     cas<=0;
+
+RAS: 1[1] -> 0[6]
+CAS: 1[1] -> 0[8 (read) / 11 (write)]
+MAX: 1[1] -> 0[7]
+ */

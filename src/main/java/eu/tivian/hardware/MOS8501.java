@@ -2,9 +2,6 @@ package eu.tivian.hardware;
 
 import java.util.*;
 
-// TODO
-// interrupt handling
-// external signal handling
 public class MOS8501 implements CPU {
     private enum Stage {
         OPCODE, DECODE, EXECUTE
@@ -83,13 +80,15 @@ public class MOS8501 implements CPU {
     public final Bus data    = new Bus("Data"   , "DB", Pin.Direction.OUTPUT,  8); // pins 31 - 38
     public final Bus port    = new Bus("Port"   , "P" , Pin.Direction.OUTPUT,  7); // pins 24 - 30
 
-    private boolean halt = true;
+    private boolean halt       = true;
     private boolean irqPending = false;
+    private boolean maskIRQ    = false;
+    private byte    rdyCounter = 0;
 
-    private Stage stage = Stage.OPCODE;
-    private byte decodeCycle = 0;
-    private AddressingMode decoding = null;
-    private boolean isAccu = false;
+    private Stage          stage       = Stage.OPCODE;
+    private byte           decodeCycle = 0;
+    private AddressingMode decoding    = null;
+    private boolean        isAccu      = false;
 
     private long  cycles  = 0;      // CPU cycle counter
     private byte  opcode  = 0x00;   // current opcode
@@ -98,7 +97,10 @@ public class MOS8501 implements CPU {
     private short pointer = 0x0000; // temporary pointer
     private byte  offset  = 0x00;   // branch offset
 
-    /*private byte read(short address) {
+    private byte read(short address) {
+        if (!halt && (rdy.level() == Pin.Level.LOW))
+            halt = true;
+
         if (address == IO_DIR_VECT) {
             byte value = 0x00;
             for (Pin p : port) {
@@ -132,9 +134,9 @@ public class MOS8501 implements CPU {
             this.address.value(address);
             this.data.value(value);
         }
-    }*/
+    }
 
-    private byte[] memory = new byte[0x10000];
+    /*private byte[] memory = new byte[0x10000];
 
     private byte read(short address) {
         return memory[address & 0xFFFF];
@@ -142,7 +144,7 @@ public class MOS8501 implements CPU {
 
     private void write(short address, byte value) {
         memory[address & 0xFFFF] = value;
-    }
+    }*/
 
     private byte pull() {
         return read((short) (STACK_VECT + (SP & 0xFF)));
@@ -360,6 +362,7 @@ public class MOS8501 implements CPU {
             } else if (decodeCycle == 3) { // fetch opcode of next instruction
                 ops.get(mnemonic[opcode & 0xFF]).execute();
                 if (offset == 0) { // branch not taken
+                    maskIRQ = true; // sort of bug of the cpu, which causes IRQ to be missed if it occurred on skipped branch
                     stage = Stage.OPCODE;
                 }  else { // if branch is taken, add operand to PCL
                     temp = (short) (PC + offset);
@@ -491,7 +494,15 @@ public class MOS8501 implements CPU {
             } else if (decodeCycle == 4) { // push PCL on stack, decrement S
                 push((byte) (PC & 0x00FF));
             } else if (decodeCycle == 5) { // push P on stack (with B flag set), decrement S
-                push((byte) (SR | Status.Bit.B));
+                // if IRQ occurred between 1 and 4 cycle of BRK it morphs into IRQ
+                if (irqPending && status.irq() == 0) {
+                    irqPending = false;
+                    decoding = this::irq;
+                    decoding.decode();
+                    return;
+                }
+
+                push((byte) (SR | Status.Bit.O | Status.Bit.B));
             } else if (decodeCycle == 6) { // fetch PCL
                 PC = (short) ((PC & 0xFF00) | (read(IRQ_VECT) & 0xFF));
             } else { // fetch PCH
@@ -943,9 +954,23 @@ public class MOS8501 implements CPU {
         });
     }};
 
+    private void ready(Pin.Level level) {
+        if (level == Pin.Level.LOW && !halt)
+            rdyCounter = 3;
+        else if (level == Pin.Level.HIGH && halt)
+            halt = false;
+    }
+
+    private void aec(Pin.Level level) {
+        address.direction(level == Pin.Level.LOW ? Pin.Direction.HI_Z : Pin.Direction.OUTPUT);
+    }
+
     private void reset(Pin.Level level) {
         if (level == Pin.Level.HIGH) {
-            System.out.println("Starting...");
+            maskIRQ = false;
+            irqPending = false;
+            rdyCounter = 0;
+
             stage = Stage.DECODE;
             decodeCycle = 1;
             decoding = addr::reset;
@@ -955,32 +980,23 @@ public class MOS8501 implements CPU {
         }
     }
 
-    private void irq(Pin.Level level) {
-        // TODO
-        // handle IRQ properly
-        //irqPending = value == Pin.Value.HIGH;
-    }
+    /*private void irq(Pin.Level level) {
+        irqPending = level == Pin.Level.HIGH;
+    }*/
 
     public MOS8501() {
-        /*
-public final Pin phi0  = new Pin("PHI0", Pin.Direction.INPUT);   // pin  1
-public final Pin rdy   = new Pin("RDY" , Pin.Direction.INPUT);   // pin  2
-public final Pin irq   = new Pin("/IRQ", Pin.Direction.INPUT);   // pin  3
-public final Pin aec   = new Pin("AEC" , Pin.Direction.INPUT);   // pin  4
-public final Pin gate  = new Pin("Gate", Pin.Direction.INPUT);   // pin 23
-public final Pin RW    = new Pin("R/-W", Pin.Direction.OUTPUT, Pin.Level.HIGH); // pin 39
-public final Pin reset = new Pin("/RES", Pin.Direction.INPUT);   // pin 40
-         */
         phi0.onChange((lvl) -> step());
+        rdy.onChange(this::ready);
+        aec.onChange(this::aec);
         reset.onChange(this::reset);
-        irq.onChange(this::irq);
+        //irq.onChange(this::irq);
     }
 
-    public long getCycles() {
+    /*public long getCycles() {
         return cycles;
     }
 
-    public void preload(byte[] memory) {
+    /*public void preload(byte[] memory) {
         preload(memory, (short) 0x0000);
     }
 
@@ -997,21 +1013,21 @@ public final Pin reset = new Pin("/RES", Pin.Direction.INPUT);   // pin 40
         return lastIrrPC;
     }
 
-    public void fastBoot() {
-        fastForward(6);
-    }
-
-    public void fastForward(int cycles) {
-        while (cycles-- != 0)
-            step();
-    }
-
     private boolean change = false;
     public short lastIrrPC = 0x0000;
     public boolean step() {
+        irqPending = (irq.level() == Pin.Level.LOW && status.irq() == 0 && !maskIRQ);
+        if (maskIRQ)
+            maskIRQ = false;
+
         if (halt)
-            halt = false;
-            //return false;
+            return false;
+
+        if (rdy.level() == Pin.Level.LOW && rdyCounter != 0) {
+            rdyCounter--;
+            if (rdyCounter == 0)
+                halt = true;
+        }
 
         cycles++;
         change = false;
@@ -1029,9 +1045,15 @@ public final Pin reset = new Pin("/RES", Pin.Direction.INPUT);   // pin 40
 
             change = true;
             lastIrrPC = PC;
-            addr.fetchOp();
+
+            if (irqPending && status.irq() == 0) {
+                irqPending = false;
+                decoding = addr::irq;
+            } else {
+                addr.fetchOp();
+                decoding = modes[opcode & 0xFF];
+            }
             decodeCycle = 1;
-            decoding = modes[opcode & 0xFF];
         }
 
         if (stage == Stage.EXECUTE) {
@@ -1040,6 +1062,48 @@ public final Pin reset = new Pin("/RES", Pin.Direction.INPUT);   // pin 40
         }
 
         return change;//stage == Stage.OPCODE;
+    }*/
+
+    public void step() {
+        irqPending = (irq.level() == Pin.Level.LOW && status.irq() == 0 && !maskIRQ);
+        if (maskIRQ)
+            maskIRQ = false;
+
+        if (halt)
+            return;
+
+        if (rdy.level() == Pin.Level.LOW && rdyCounter != 0) {
+            rdyCounter--;
+            if (rdyCounter == 0)
+                halt = true;
+        }
+
+        cycles++;
+        if (stage == Stage.DECODE) {
+            decodeCycle++;
+            decoding.decode();
+        }
+
+        if (stage == Stage.OPCODE) {
+            if (irqPending) {
+                irqPending = false;
+                addr.irq();
+            }
+
+            if (irqPending && status.irq() == 0) {
+                irqPending = false;
+                decoding = addr::irq;
+            } else {
+                addr.fetchOp();
+                decoding = modes[opcode & 0xFF];
+            }
+            decodeCycle = 1;
+        }
+
+        if (stage == Stage.EXECUTE) {
+            ops.get(mnemonic[opcode & 0xFF]).execute();
+            stage = Stage.OPCODE;
+        }
     }
 
     @Override
@@ -1049,7 +1113,7 @@ public final Pin reset = new Pin("/RES", Pin.Direction.INPUT);   // pin 40
         sb.append(String.format(";%04X %02X %02X %02X %02X %02X  ", PC, SR, AC, XR, YR, SP));
         sb.append(String.format("%8s", Integer.toString(SR & 0xFF, 2)).replace(' ', '0'));
         if (halt)
-            sb.append("\n\tCPU is halted!");
+            sb.append("\n\tThe CPU is halted!");
 
         return sb.toString();
     }

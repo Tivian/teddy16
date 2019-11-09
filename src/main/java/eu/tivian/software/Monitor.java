@@ -71,7 +71,7 @@ public class Monitor {
         put("zpy", new Mode(1, "$%02X,Y"));
     }};
 
-    private CPU cpu;
+    /*private CPU cpu;
     private Mode mode = null;
 
     public Monitor(CPU cpu) {
@@ -125,7 +125,7 @@ public class Monitor {
             System.out.println(line(a));
             a += mode.bytes;
         }
-    }
+    }*/
 }
 
 /* addressing modes

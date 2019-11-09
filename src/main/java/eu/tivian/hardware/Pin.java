@@ -44,6 +44,21 @@ public class Pin {
         this.wire = wire;
     }
 
+    public void connect(Pin other) {
+        if (other.wire != null) {
+            wire = other.wire;
+        } else {
+            wire = new Wire();
+            other.wire = wire;
+        }
+
+        other.wire.connect(this);
+    }
+
+    public void disconnect() {
+        this.wire = null;
+    }
+
     public void direction(Direction dir) {
         this.direction = dir;
     }

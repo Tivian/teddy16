@@ -4,17 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class Wire {
-    private final Set<Pin> pins;
-    private final String info;
-
-    public Wire() {
-        this("");
-    }
-
-    public Wire(String info) {
-        pins = new HashSet<>();
-        this.info = info;
-    }
+    private final Set<Pin> pins = new HashSet<>();
 
     public Wire connect(Pin pin) {
         pin.connect(this);
@@ -37,10 +27,5 @@ public class Wire {
                 continue;
             p.update(this, value);
         }
-    }
-
-    @Override
-    public String toString() {
-        return info;
     }
 }

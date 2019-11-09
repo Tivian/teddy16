@@ -1,10 +1,16 @@
 package eu.tivian;
 
+import eu.tivian.gui.MainWindow;
+import eu.tivian.gui.TestImage;
 import eu.tivian.hardware.MOS8501;
 import eu.tivian.hardware.Pin;
 import eu.tivian.hardware.Wire;
 import eu.tivian.software.Monitor;
 
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,7 +21,7 @@ import java.util.Scanner;
 -----------------------
 1) CPU              [X]
 2) TED              [ ]
-3) PLA              [ ]
+3) PLA              [X]
 4) ROM              [X]
 5) RAM              [ ]
 6) IC:
@@ -31,11 +37,31 @@ import java.util.Scanner;
  */
 
 public class Main {
-    public static MOS8501 cpu = new MOS8501();
-    public static Monitor monitor = new Monitor(cpu);
+    //public static MOS8501 cpu = new MOS8501();
+    //public static Monitor monitor = new Monitor(cpu);
+
+    private static void createAndShowGUI() {
+        //Create and set up the window.
+        JFrame frame = new JFrame("teddy16");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        //Create and set up the content pane.
+        JComponent contentPane = new MainWindow();
+        contentPane.setOpaque(true); //content panes must be opaque
+        frame.setContentPane(contentPane);
+
+        //Display the window.
+        //frame.pack();
+        frame.setSize(contentPane.getSize());
+        frame.setVisible(true);
+    }
 
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
+        SwingUtilities.invokeLater(Main::createAndShowGUI);
+        //var window = new MainWindow();
+        //window.setVisible(true);
+
+        /*Scanner scanner = new Scanner(System.in);
 
         if (args.length != 0) {
             var file = Path.of(args[0]);
@@ -56,7 +82,7 @@ public class Main {
         //reset.connect(cpu.reset).connect(start);
         //start.set(Pin.Value.HIGH);
         //cpu.fastBoot();
-        cpu.PC = 0x0400;
+        /*cpu.PC = 0x0400;
 
         String line = "";
         int address = 0x0000;
@@ -123,7 +149,7 @@ public class Main {
             ex.printStackTrace();
         }
         //Monitor monitor = new Monitor(cpu);
-        //monitor.dump();
+        //monitor.dump();*/
     }
 
     public static void cls(String... arg) throws IOException, InterruptedException {

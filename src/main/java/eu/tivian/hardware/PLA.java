@@ -4,12 +4,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-// TODO: internal logic
-//  product term array
-//  sum term array
+// based on custom PLA from C16
+// http://www.zimmers.net/anonftp/pub/cbm/firmware/computers/plus4/pla.txt
+// http://www.zimmers.net/anonftp/pub/cbm/firmware/computers/plus4/pla.c
 public class PLA {
     public final List<Pin> input;
     public final List<Pin> output;
+
+    public PLA() {
+        this(8, 16);
+    }
 
     public PLA(int inputs, int outputs) {
         List<Pin> temp = new ArrayList<>();
@@ -27,7 +31,22 @@ public class PLA {
     }
 
     private void update(Pin.Level level) {
+        boolean[] in = new boolean[input.size()];
+        for (int i = 0; i < in.length; i++)
+            in[i] = input.get(i).level().bool();
 
+        boolean[] out = new boolean[output.size()];
+        out[0] =  in[15] || !in[14] || !in[13] || !in[12] ||  in[11] || !in[10] || !in[9] || !in[7] ||  in[6] ||  in[5] || !in[4] ||  in[3] || !in[2] || !in[1];
+        out[1] = !in[15] &&   in[1] &&   in[0];
+        out[2] =  in[15] || !in[14] || !in[13] || !in[12] ||  in[11] || !in[10] || !in[9] || !in[7] ||  in[6] ||  in[5] ||  in[4] || !in[3] || !in[2] || !in[1] || !in[0];
+        out[3] = !in[14] || !in[13] || !in[12] ||  in[11] || !in[10] ||  !in[9] || !in[7] ||  in[6] ||  in[5] ||  in[4] ||  in[3] || !in[2] || !in[1];
+        out[4] =  in[15] || !in[14] || !in[13] || !in[12] ||  in[11] || !in[10] || !in[9] || !in[7] || !in[6] || !in[5] ||  in[4] || !in[3] || !in[2] || !in[1] || !in[0];
+        out[5] =  in[15] || !in[14] || !in[13] || !in[12] ||  in[11] || !in[10] || !in[9] || !in[7] ||  in[6] ||  in[5] || !in[4] || !in[3] || !in[2] || !in[1] || !in[0];
+        out[6] =  in[14] &&  in[13] &&  in[12] && !in[11] && !in[10] &&   in[9] &&  in[7] &&  in[2];
+        out[7] =   in[8] || out[1];
+
+        for (int i = 0; i < out.length; i++)
+            output.get(i).level(out[i]);
     }
 }
 
@@ -60,29 +79,5 @@ F4   ^ADDR CLK   X X 1 X X 0 X X X
 F5   -KEYPORT    X X 1 X 0 X X X X
 F6    KERNAL     X X 0 1 X X X X X
 F7    I0         X X 0 X 1 1 1 1 1
-
-// unused_	0 when 0111011x1001011x
-#define F0	I15 || !I14 || !I13 || !I12 || I11 || !I10 || !I9 || !I7 || I6 || I5 || !I4 || I3 || !I2 || !I1
-
-// PHI2		1 when 0xxxxxxx xxxxxx11
-#define F1	!I15 && I1 && I0
-
-// USER_	0 when 0111011x10001111
-#define F2	I15 || !I14 || !I13 || !I12 || I11 || !I10 || !I9 || !I7 || I6 || I5 || I4 || !I3 || !I2 || !I1 || !I0
-
-// 6551_	0 when x111011x1000011x
-#define F3	!I14 || !I13 || !I12 || I11 || !I10 || !I9 || !I7 || I6 || I5 || I4 || I3 || !I2 || !I1
-
-// ADDR_CLK	0 when 1111011x11101111
-#define F4	I15 || !I14 || !I13 || !I12 || I11 || !I10 || !I9 || !I7 || !I6 || !I5 || I4 || !I3 || !I2 || !I1 || !I0
-
-// KEYPORT_	0 when 0111011x10011111
-#define F5	I15 || !I14 || !I13 || !I12 || I11 || !I10 || !I9 || !I7 || I6 || I5 || !I4 || !I3 || !I2 || !I1 || !I0
-
-// KERNAL_	1 when x111001x1xxxx1xx
-#define F6	I14 && I13 && I12 && !I11 && !I10 && I9 && I7 && I2
-
-// I0	1 when xxxxxxx1xxxxxxxx or when 0xxxxxxxxxxxxx11
-#define F7	I8 || (F1)
 
  */
