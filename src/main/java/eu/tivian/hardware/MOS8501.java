@@ -1,10 +1,12 @@
 package eu.tivian.hardware;
 
 import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class MOS8501 implements CPU {
     private enum Stage {
-        OPCODE, DECODE, EXECUTE
+        OPCODE, FETCH, DECODE, EXECUTE, MEMORY
     };
 
     private interface AddressingMode { void decode(); }
@@ -73,7 +75,7 @@ public class MOS8501 implements CPU {
     public final Pin irq   = new Pin("/IRQ", Pin.Direction.INPUT);   // pin  3
     public final Pin aec   = new Pin("AEC" , Pin.Direction.INPUT);   // pin  4
     public final Pin gate  = new Pin("Gate", Pin.Direction.INPUT);   // pin 23
-    public final Pin RW    = new Pin("R/-W", Pin.Direction.OUTPUT, Pin.Level.HIGH); // pin 39
+    public final Pin rw    = new Pin("R/-W", Pin.Direction.OUTPUT, Pin.Level.HIGH); // pin 39
     public final Pin reset = new Pin("/RES", Pin.Direction.INPUT);   // pin 40
 
     public final Bus address = new Bus("Address", "A" , Pin.Direction.OUTPUT, 16); // pins 6 - 19, 21, 22
@@ -86,53 +88,78 @@ public class MOS8501 implements CPU {
     private byte    rdyCounter = 0;
 
     private Stage          stage       = Stage.OPCODE;
-    private byte           decodeCycle = 0;
+    byte           decodeCycle = 0;
     private AddressingMode decoding    = null;
     private boolean        isAccu      = false;
 
     private long  cycles  = 0;      // CPU cycle counter
     private byte  opcode  = 0x00;   // current opcode
+    private short lastPos = 0x0000; // last opcode position
     private byte  operand = 0x00;   // current operand
     private short ea      = 0x0000; // effective address
     private short pointer = 0x0000; // temporary pointer
     private byte  offset  = 0x00;   // branch offset
 
-    private byte read(short address) {
+    protected Consumer<Byte> halfCycleOut = null;
+    protected Supplier<Byte> halfCycleIn  = null;
+    protected Byte           lastData     = null;
+
+    protected void read(short address) {
+        read(address, null);
+    }
+
+    protected void read(short address, Consumer<Byte> readCycle) {
         if (!halt && (rdy.level() == Pin.Level.LOW))
             halt = true;
 
+        halfCycleOut = readCycle;
         if (address == IO_DIR_VECT) {
-            byte value = 0x00;
+            /*byte value = 0x00;
             for (Pin p : port) {
                 value |= p.direction() == Pin.Direction.OUTPUT ? 1 : 0;
                 value <<= 1;
-            }
-            return value;
+            }*/
+            halfCycleIn = () -> (byte) port.dirValue();
+            //return value;
         } else if (address == IO_VECT) {
-            return (byte) port.value();
+            halfCycleIn = () -> (byte) port.value();
+            //return (byte) port.value();
         } else if (aec.level() == Pin.Level.LOW) {
-            return 0x00;
+            halfCycleIn = () -> (byte) 0x00;
+            //return 0x00;
         } else {
-            RW.level(Pin.Level.LOW);
+            rw.level(Pin.Level.HIGH);
             data.direction(Pin.Direction.INPUT);
             this.address.value(address);
-            return (byte) (data.value() & 0xFF);
+            halfCycleIn = () -> (byte) (data.value() & 0xFF);
+            /*halfCycleIn = () -> {
+                byte value = (byte) (data.value() & 0xFF);
+                lastData = value;
+                return value;
+            };*/
+            //return (byte) (data.value() & 0xFF);
         }
     }
 
-    private void write(short address, byte value) {
+    protected void write(short address, byte value) {
         if (address == IO_DIR_VECT) {
-            for (Pin p : port) {
+            port.direction(value);
+            /*for (Pin p : port) {
                 p.direction((value & 1) != 0 ? Pin.Direction.OUTPUT : Pin.Direction.INPUT);
                 value >>= 1;
-            }
+            }*/
         } else if (address == IO_VECT) {
             port.value(value);
         } else if (aec.level() == Pin.Level.HIGH) {
-            RW.level(Pin.Level.HIGH);
+            rw.level(Pin.Level.LOW);
             data.direction(Pin.Direction.OUTPUT);
             this.address.value(address);
-            this.data.value(value);
+            halfCycleIn = () -> {
+                lastData = value;
+                return value;
+            };
+            halfCycleOut = this.data::value;
+            //this.data.value(value);
         }
     }
 
@@ -146,8 +173,12 @@ public class MOS8501 implements CPU {
         memory[address & 0xFFFF] = value;
     }*/
 
-    private byte pull() {
-        return read((short) (STACK_VECT + (SP & 0xFF)));
+    private void pull() {
+        pull(null);
+    }
+
+    private void pull(Consumer<Byte> operation) {
+        read((short) (STACK_VECT + (SP & 0xFF)), operation);
     }
 
     private void push(byte value) {
@@ -155,7 +186,7 @@ public class MOS8501 implements CPU {
         SP--; // all push operations require SP decrementation
     }
 
-    public static final String[] mnemonic = {
+    protected static final String[] mnemonic = {
         "BRK", "ORA", "JAM", "SLO", "NOP", "ORA", "ASL", "SLO", "PHP", "ORA", "ASL", "ANC", "NOP", "ORA", "ASL", "SLO",
         "BPL", "ORA", "JAM", "SLO", "NOP", "ORA", "ASL", "SLO", "CLC", "ORA", "NOP", "SLO", "NOP", "ORA", "ASL", "SLO",
         "JSR", "AND", "JAM", "RLA", "BIT", "AND", "ROL", "RLA", "PLP", "AND", "ROL", "ANC", "BIT", "AND", "ROL", "RLA",
@@ -182,8 +213,9 @@ public class MOS8501 implements CPU {
         private short temp = 0x0000;
 
         void fetchOp() { // fetch opcode, increment PC
-            opcode = read(PC++);
-            stage = Stage.DECODE;
+            read(PC++, data -> opcode = data);
+            //opcode = read(PC++);
+            stage = Stage.FETCH;
         }
 
         // implied addressing [2 cycles]
@@ -201,16 +233,19 @@ public class MOS8501 implements CPU {
 
         // immediate addressing [2 cycles]
         void imm() { // fetch value, increment PC
-            operand = read(PC++);
+            read(PC++, (data) -> operand = data);
+            //operand = read(PC++);
             stage = Stage.EXECUTE;
         }
 
         // absolute addressing (JMP) [3 cycles]
         void absJMP() {
             if (decodeCycle == 2) { // fetch low address byte, increment PC
-                ea = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(PC++) & 0xFF);
             } else { // copy low address byte to PCL, fetch high address byte to PCH
-                ea |= read(PC) << 8;
+                read(PC, data -> ea |= data << 8);
+                //ea |= read(PC) << 8;
                 stage = Stage.EXECUTE;
             }
         }
@@ -218,11 +253,14 @@ public class MOS8501 implements CPU {
         // absolute addressing (Read/Write) [4 cycles]
         private void absR_W(boolean read) {
             if (decodeCycle == 2) { // fetch low byte of address, increment PC
-                ea = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(PC++) & 0xFF);
             } else if (decodeCycle == 3) { // fetch high byte of address, increment PC
-                ea |= read(PC++) << 8;
+                read(PC++, data -> ea |= data << 8);
+                //ea |= read(PC++) << 8;
             } else { // read from/write to effective address
-                if (read) operand = read(ea);
+                if (read) read(ea, data -> operand = data);
+                //if (read) operand = read(ea);
                 stage = Stage.EXECUTE;
             }
         }
@@ -232,11 +270,14 @@ public class MOS8501 implements CPU {
         // absolute addressing (Read-Modify-Write) [6 cycles]
         void absRW() {
             if (decodeCycle == 2) { // fetch low byte of address, increment PC
-                ea = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(PC++) & 0xFF);
             } else if (decodeCycle == 3) { // fetch high byte of address, increment PC
-                ea |= read(PC++) << 8;
+                read(PC++, data -> ea |= data << 8);
+                //ea |= read(PC++) << 8;
             } else if (decodeCycle == 4) { // read from effective address
-                operand = read(ea);
+                read(ea, data -> operand = data);
+                //operand = read(ea);
             } else if (decodeCycle == 5) { // write the value back to effective address
                 write(ea, operand);
             } else if (decodeCycle == 6) { // write the new value to effective address
@@ -247,9 +288,11 @@ public class MOS8501 implements CPU {
         // zeropage addressing (Read/Write) [3 cycles]
         private void zpgR_W(boolean read) {
             if (decodeCycle == 2) { // fetch address, increment PC
-                ea = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(PC++) & 0xFF);
             } else { // read from/write to effective address
-                if (read) operand = read(ea);
+                if (read) read(ea, data -> operand = data);
+                //if (read) operand = read(ea);
                 stage = Stage.EXECUTE;
             }
         }
@@ -259,9 +302,11 @@ public class MOS8501 implements CPU {
         // zeropage addressing (Read-Modify-Write) [5 cycles]
         void zpgRW() {
             if (decodeCycle == 2) { // fetch address, increment PC
-                ea = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(PC++) & 0xFF);
             } else if (decodeCycle == 3) { // read from effective address
-                operand = read(ea);
+                read(ea, data -> operand = data);
+                //operand = read(ea);
             } else if (decodeCycle == 4) { // write the value back to effective address
                 write(ea, operand);
             } else { // write the new value to effective address
@@ -272,12 +317,14 @@ public class MOS8501 implements CPU {
         // zeropage indexed addressing (Read/Write) [4 cycles]
         private void zpiR_W(byte reg, boolean read) {
             if (decodeCycle == 2) { // fetch address, increment PC
-                ea = (short) (read(PC++) & 0xFF);
-            } else if (decodeCycle == 3) { // read from address, add index register to it
+                read(PC++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(PC++) & 0xFF);
+            } else if (decodeCycle == 3) { // read from address
                 read(ea);
-                ea = (short) ((ea + (reg & 0xFF)) & 0xFF); // page boundary crossings are not handled
             } else { // read from/write to effective address
-                if (read) operand = read(ea);
+                ea = (short) ((ea + (reg & 0xFF)) & 0xFF); // page boundary crossings are not handled
+                if (read) read(ea, data -> operand = data);
+                //if (read) operand = read(ea);
                 stage = Stage.EXECUTE;
             }
         }
@@ -289,12 +336,14 @@ public class MOS8501 implements CPU {
         // zeropage indexed addressing (Read-Modify-Write) [6 cycles]
         private void zpiRW(byte reg) {
             if (decodeCycle == 2) { // fetch address, increment PC
-                ea = (short) (read(PC++) & 0xFF);
-            } else if (decodeCycle == 3) { // read from address, add index register X to it
+                read(PC++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(PC++) & 0xFF);
+            } else if (decodeCycle == 3) { // read from address
                 read(ea);
+            } else if (decodeCycle == 4) { // add index register X to address and read from it
                 ea = (short) ((ea + (reg & 0xFF)) & 0xFF); // page boundary crossings are not handled
-            } else if (decodeCycle == 4) { // read from effective address
-                operand = read(ea);
+                read(ea, data -> operand = data);
+                //operand = read(ea);
             } else if (decodeCycle == 5) { // write the value back to effective address
                 write(ea, operand);
             } else { // write the new value to effective address
@@ -307,21 +356,25 @@ public class MOS8501 implements CPU {
         // absolute indexed addressing (Read/Write) [4-5 cycles]
         private void abxR_W(byte reg, boolean read) {
             if (decodeCycle == 2) { // fetch low byte of address, increment PC
-                ea = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(PC++) & 0xFF);
             } else if (decodeCycle == 3) { // fetch high byte of address, increment PC
-                ea |= read(PC++) << 8;
+                read(PC++, data -> ea |= data << 8);
+                //ea |= read(PC++) << 8;
+            } else if (decodeCycle == 4) { // read from effective address
                 // add index register to low address byte
                 temp = (short) (ea + (reg & 0xFF));
                 ea = (short) ((ea & 0xFF00) | ((ea + (reg & 0xFF)) & 0x00FF));
                 carry = temp != ea;
-            } else if (decodeCycle == 4) { // read from effective address
-                operand = read(ea);
-                if (carry) // fix the high byte of effective address
-                    ea = temp;
-                else
+
+                read(ea, data -> operand = data);
+                //operand = read(ea);
+                if (!carry) // high byte doesn't need fixing of effective address
                     stage = Stage.EXECUTE;
             } else { // re-read from / write to effective address
-                if (read) operand = read(ea);
+                ea = temp;
+                if (read) read(ea, data -> operand = data);
+                //if (read) operand = read(ea);
                 stage = Stage.EXECUTE;
             }
         }
@@ -333,19 +386,23 @@ public class MOS8501 implements CPU {
         // absolute indexed addressing (Read-Modify-Write) [7 cycles]
         private void abiRW(byte reg) {
             if (decodeCycle == 2) { // fetch low byte of address, increment PC
-                ea = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(PC++) & 0xFF);
             } else if (decodeCycle == 3) { // fetch high byte of address, increment PC
-                ea |= read(PC++) << 8;
+                read(PC++, data -> ea |= data << 8);
+                //ea |= read(PC++) << 8;
+            } else if (decodeCycle == 4) { // read from effective address
                 // add index register X to low address byte
                 temp = (short) (ea + (reg & 0xFF));
                 ea = (short) ((ea & 0xFF00) | (temp & 0x00FF));
                 carry = temp != ea;
-            } else if (decodeCycle == 4) { // read from effective address
-                operand = read(ea);
+                read(ea, data -> operand = data);
+                //operand = read(ea);
+            } else if (decodeCycle == 5) { // re-read from effective address
                 if (carry) // fix the high byte of effective address
                     ea = temp;
-            } else if (decodeCycle == 5) { // re-read from effective address
-                operand = read(ea);
+                read(ea, data -> operand = data);
+                //operand = read(ea);
             } else if (decodeCycle == 6) { // write the value back to effective address
                 write(ea, operand);
             } else { // write the new value to effective address
@@ -358,7 +415,8 @@ public class MOS8501 implements CPU {
         // relative addressing [3-5 cycles]
         void rel() {
             if (decodeCycle == 2) { // fetch operand, increment PC
-                operand = read(PC++);
+                read(PC++, data -> operand = data);
+                //operand = read(PC++);
             } else if (decodeCycle == 3) { // fetch opcode of next instruction
                 ops.get(mnemonic[opcode & 0xFF]).execute();
                 if (offset == 0) { // branch not taken
@@ -371,11 +429,10 @@ public class MOS8501 implements CPU {
                 }
             } else if (decodeCycle == 4) { // fetch opcode of next instruction
                 read(PC);
-                if (carry)
-                    PC = temp;
-                else
+                if (!carry)
                     stage = Stage.OPCODE;
             } else { // fetch opcode of next instruction, increment PC
+                PC = temp;
                 stage = Stage.OPCODE;
             }
         }
@@ -383,16 +440,20 @@ public class MOS8501 implements CPU {
         // indexed indirect addressing (Read/Write) [6 cycles]
         private void izxR_W(boolean read) {
             if (decodeCycle == 2) { // fetch pointer address, increment PC
-                operand = read(PC++);
+                read(PC++, data -> operand = data);
+                //operand = read(PC++);
             } else if (decodeCycle == 3) { // read from the address, add X to it
                 read(operand);
                 pointer = (short) ((operand + (XR & 0xFF)) & 0xFF); // page boundary crossings are not handled
             } else if (decodeCycle == 4) { // fetch effective address low
-                ea = (short) (read(pointer) & 0xFF);
+                read(pointer, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(pointer) & 0xFF);
             } else if (decodeCycle == 5) { // fetch effective address high
-                ea |= read((byte) (pointer + 1)) << 8;
+                read((byte) (pointer + 1), data -> ea |= data << 8);
+                //ea |= read((byte) (pointer + 1)) << 8;
             } else { // read from / write to effective address
-                if (read) operand = read(ea);
+                if (read) read(ea, data -> operand = data);
+                //if (read) operand = read(ea);
                 stage = Stage.EXECUTE;
             }
         }
@@ -402,16 +463,20 @@ public class MOS8501 implements CPU {
         // indexed indirect addressing (Read-Modify-Write) [8 cycles]
         void izxRW() {
             if (decodeCycle == 2) { // fetch pointer address, increment PC
-                operand = read(PC++);
+                read(PC++, data -> operand = data);
+                //operand = read(PC++);
             } else if (decodeCycle == 3) { // read from the address, add X to it
                 read(operand);
                 pointer = (short) ((operand + (XR & 0xFF)) & 0xFF); // page boundary crossings are not handled
             } else if (decodeCycle == 4) { // fetch effective address low
-                ea = (short) (read(pointer) & 0xFF);
+                read(pointer, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(pointer) & 0xFF);
             } else if (decodeCycle == 5) { // fetch effective address high
-                ea |= read((byte) (pointer + 1)) << 8;
+                read((byte) (pointer + 1), data -> ea |= data << 8);
+                //ea |= read((byte) (pointer + 1)) << 8;
             } else if (decodeCycle == 6) { // read from effective address
-                operand = read(ea);
+                read(ea, data -> operand = data);
+                //operand = read(ea);
             } else if (decodeCycle == 7) { // write the value back to effective address
                 write(ea, operand);
             } else { // write the new value to effective address
@@ -422,23 +487,28 @@ public class MOS8501 implements CPU {
         // indirect indexed addressing (Read/Write) [5-6 cycles]
         private void izyR_W(boolean read) {
             if (decodeCycle == 2) { // fetch pointer address, increment PC
-                pointer = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> pointer = (short) (data & 0xFF));
+                //pointer = (short) (read(PC++) & 0xFF);
             } else if (decodeCycle == 3) { // fetch effective address low
-                ea = (short) (read(pointer) & 0xFF);
+                read(pointer, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(pointer) & 0xFF);
             } else if (decodeCycle == 4) { // fetch effective address high
-                ea |= read((byte) (pointer + 1)) << 8; // page boundary crossing is not handled
+                read((byte) (pointer + 1), data -> ea |= data << 8); // page boundary crossing is not handled
+                //ea |= read((byte) (pointer + 1)) << 8; // page boundary crossing is not handled
+            } else if (decodeCycle == 5) { // read from effective address
                 // add Y to low byte of effective address
                 temp = (short) (ea + (YR & 0xFF));
                 ea = (short) ((ea & 0xFF00) | ((ea + (YR & 0xFF)) & 0x00FF));
                 carry = temp != ea;
-            } else if (decodeCycle == 5) { // read from effective address
-                operand = read(ea);
-                if (carry)  // fix high byte of effective address
-                    ea = temp;
-                else
+
+                read(ea, data -> operand = data);
+                //operand = read(ea);
+                if (!carry) // the high byte of effective address doesn't need fixing
                     stage = Stage.EXECUTE;
             } else { // read from / write to effective address
-                if (read) operand = read(ea);
+                ea = temp;
+                if (read) read(ea, data -> operand = data);
+                //if (read) operand = read(ea);
                 stage = Stage.EXECUTE;
             }
         }
@@ -448,21 +518,27 @@ public class MOS8501 implements CPU {
         // indirect indexed addressing (Read-Modify-Write) [8 cycles]
         void izyRW() {
             if (decodeCycle == 2) { // fetch pointer address, increment PC
-                pointer = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> pointer = (short) (data & 0xFF));
+                //pointer = (short) (read(PC++) & 0xFF);
             } else if (decodeCycle == 3) { // fetch effective address low
-                ea = (short) (read(pointer) & 0xFF);
+                read(pointer, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(pointer) & 0xFF);
             } else if (decodeCycle == 4) { // fetch effective address high
-                ea |= read((byte) (pointer + 1)) << 8; // page boundary crossing is not handled
+                read((byte) (pointer + 1), data -> ea |= data << 8); // page boundary crossing is not handled
+                //ea |= read((byte) (pointer + 1)) << 8; // page boundary crossing is not handled
+            } else if (decodeCycle == 5) { // read from effective address
                 // add Y to low byte of effective address
                 temp = (short) (ea + (YR & 0xFF));
                 ea = (short) ((ea & 0xFF00) | ((ea + (YR & 0xFF)) & 0x00FF));
                 carry = temp != ea;
-            } else if (decodeCycle == 5) { // read from effective address
-                operand = read(ea);
+
+                read(ea, data -> operand = data);
+                //operand = read(ea);
+            } else if (decodeCycle == 6) {// read from effective address
                 if (carry) // fix high byte of effective address
                     ea = temp;
-            } else if (decodeCycle == 6) {// read from effective address
-                operand = read(ea);
+                read(ea, data -> operand = data);
+                //operand = read(ea);
             } else if (decodeCycle == 7) { // write the value back to effective address
                 write(ea, operand);
             } else {
@@ -473,14 +549,18 @@ public class MOS8501 implements CPU {
         // absolute indirect addressing (JMP) [5 cycles]
         void indJMP() {
             if (decodeCycle == 2) { // fetch pointer address low, increment PC
-                pointer = (short) (read(PC++) & 0xFF);
+                read(PC++, data -> pointer = (short) (data & 0xFF));
+                //pointer = (short) (read(PC++) & 0xFF);
             } else if (decodeCycle == 3) { // fetch pointer address high, increment PC
-                pointer |= read(PC++) << 8;
+                read(PC++, data -> pointer |= data << 8);
+                //pointer |= read(PC++) << 8;
             } else if (decodeCycle == 4) { // fetch low address to latch
-                ea = (short) (read(pointer) & 0xFF);
+                read(pointer, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(pointer) & 0xFF);
             } else { // fetch PCH, copy latch to PCL
                 // page boundary crossing is not handled
-                ea |= read((short) ((pointer & 0xFF00) | ((pointer + 1) & 0x00FF))) << 8;
+                read((short) ((pointer & 0xFF00) | ((pointer + 1) & 0x00FF)), data -> ea |= data << 8);
+                //ea |= read((short) ((pointer & 0xFF00) | ((pointer + 1) & 0x00FF))) << 8;
                 stage = Stage.EXECUTE;
             }
         }
@@ -504,10 +584,12 @@ public class MOS8501 implements CPU {
 
                 push((byte) (SR | Status.Bit.O | Status.Bit.B));
             } else if (decodeCycle == 6) { // fetch PCL
-                PC = (short) ((PC & 0xFF00) | (read(IRQ_VECT) & 0xFF));
+                read(IRQ_VECT, data -> PC = (short) ((PC & 0xFF00) | (data & 0xFF)));
+                //PC = (short) ((PC & 0xFF00) | (read(IRQ_VECT) & 0xFF));
             } else { // fetch PCH
                 status.irq(true);
-                PC = (short) ((read((short) (IRQ_VECT + 1)) << 8) | (PC & 0x00FF));
+                read((short) (IRQ_VECT + 1), data -> PC = (short) ((data << 8) | (PC & 0x00FF)));
+                //PC = (short) ((read((short) (IRQ_VECT + 1)) << 8) | (PC & 0x00FF));
                 stage = Stage.EXECUTE;
             }
         }
@@ -519,13 +601,18 @@ public class MOS8501 implements CPU {
             } else if (decodeCycle == 3) { // increment S
                 SP++;
             } else if (decodeCycle == 4) { // pull P from stack, increment S
-                SR = (byte) (pull() | Status.Bit.O);
-                SP++;
+                pull(data -> SR = (byte) (data | Status.Bit.O));
+                //SR = (byte) (pull() | Status.Bit.O);
+                //SP++;
             } else if (decodeCycle == 5) { // pull PCL from stack, increment S
-                PC = (short) ((PC & 0xFF00) | (pull() & 0xFF));
                 SP++;
+                pull(data -> PC = (short) ((PC & 0xFF00) | (data & 0xFF)));
+                //PC = (short) ((PC & 0xFF00) | (pull() & 0xFF));
+                //SP++;
             } else { // pull PCH from stack
-                PC = (short) ((pull() << 8) | (PC & 0x00FF));
+                SP++;
+                pull(data -> PC = (short) ((data << 8) | (PC & 0x00FF)));
+                //PC = (short) ((pull() << 8) | (PC & 0x00FF));
                 stage = Stage.EXECUTE;
             }
         }
@@ -537,10 +624,13 @@ public class MOS8501 implements CPU {
             } else if (decodeCycle == 3) { // increment S
                 SP++;
             } else if (decodeCycle == 4) { // pull PCL from stack, increment S
-                PC = (short) ((PC & 0xFF00) | (pull() & 0xFF));
-                SP++;
+                pull(data -> PC = (short) ((PC & 0xFF00) | (data & 0xFF)));
+                //PC = (short) ((PC & 0xFF00) | (pull() & 0xFF));
+                //SP++;
             } else if (decodeCycle == 5) { // pull PCH from stack
-                PC = (short) ((pull() << 8) | (PC & 0x00FF));
+                SP++;
+                pull(data -> PC = (short) ((data << 8) | (PC & 0x00FF)));
+                //PC = (short) ((pull() << 8) | (PC & 0x00FF));
             } else { // increment PC
                 PC++;
                 stage = Stage.EXECUTE;
@@ -570,7 +660,8 @@ public class MOS8501 implements CPU {
         // JSR addressing [6 cycles]
         void stkJSR() {
             if (decodeCycle == 2) { // fetch low address byte, increment PC
-                operand = read(PC++);
+                read(PC++, data -> operand = data);
+                //operand = read(PC++);
             } else if (decodeCycle == 3) { // internal operation (predecrement S?)
                 pull();
             } else if (decodeCycle == 4) { // push PCH on stack, decrement S
@@ -578,7 +669,8 @@ public class MOS8501 implements CPU {
             } else if (decodeCycle == 5) { // push PCL on stack, decrement S
                 push((byte) (PC & 0x00FF));
             } else if (decodeCycle == 6) { // copy low address byte to PCL, fetch high address byte to PCH
-                PC = (short) ((read(PC) << 8) | (operand & 0xFF));
+                read(PC, data -> PC = (short) ((data << 8) | (operand & 0xFF)));
+                //PC = (short) ((read(PC) << 8) | (operand & 0xFF));
                 stage = Stage.EXECUTE;
             }
         }
@@ -586,16 +678,20 @@ public class MOS8501 implements CPU {
         // illegal indexed indirect addressing (Read-Modify-Write) [8 cycles]
         void izxILL() {
             if (decodeCycle == 2) { // fetch pointer address, increment PC
-                operand = read(PC++);
+                read(PC++, data -> operand = data);
+                //operand = read(PC++);
             } else if (decodeCycle == 3) { // dummy cycle, read the same data
                 read(PC);
             } else if (decodeCycle == 4) { // add X to pointer, fetch effective address low
                 pointer = (short) ((operand + (XR & 0xFF)) & 0xFF); // page boundary crossings are not handled
-                ea = (short) (read(pointer) & 0xFF);
+                read(pointer, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(pointer) & 0xFF);
             } else if (decodeCycle == 5) { // fetch effective address high
-                ea |= read((byte) (pointer + 1)) << 8;
+                read((byte) (pointer + 1), data -> ea |= data << 8);
+                //ea |= read((byte) (pointer + 1)) << 8;
             } else if (decodeCycle == 6) { // read from effective address
-                operand = read(ea);
+                read(ea, data -> operand = data);
+                //operand = read(ea);
             } else if (decodeCycle == 7) { // write the value back to effective address
                 write(ea, operand);
             } else { // write the new value to effective address
@@ -606,16 +702,20 @@ public class MOS8501 implements CPU {
         // illegal indirect indexed addressing (Read-Modify-Write) [8 cycles]
         void izyILL() {
             if (decodeCycle == 2) { // fetch pointer address, increment PC
-                operand = read(PC++);
+                read(PC++, data -> operand = data);
+                //operand = read(PC++);
             } else if (decodeCycle == 3) { // fetch effective address low
-                ea = (short) (read(operand++) & 0xFF);
+                read(operand++, data -> ea = (short) (data & 0xFF));
+                //ea = (short) (read(operand++) & 0xFF);
             } else if (decodeCycle == 4) { // fetch effective address high
-                ea |= read(operand) << 8;
+                read(operand, data -> ea |= data << 8);
+                //ea |= read(operand) << 8;
             } else if (decodeCycle == 5) { // add Y to effective address
                 ea += YR;
                 read(ea);
             } else if (decodeCycle == 6) { // read from effective address
-                operand = read(ea);
+                read(ea, data -> operand = data);
+                //operand = read(ea);
             } else if (decodeCycle == 7) { // write the value back to effective address
                 write(ea, operand);
             } else { // write the new value to effective address
@@ -634,9 +734,11 @@ public class MOS8501 implements CPU {
             } else if (decodeCycle == 5) { // don't care (address bus 0x0100 + SP-2)
                 read((short) (0x0100 + ((SP - 2) & 0xFF)));
             } else if (decodeCycle == 6) { // fetch PCL from RESET_VECT
-                PC = (short) ((PC & 0xFF00) | (read(RESET_VECT)));
+                read(RESET_VECT, data -> PC = (short) ((PC & 0xFF00) | data));
+                //PC = (short) ((PC & 0xFF00) | (read(RESET_VECT)));
             } else { // fetch PCH from RESET_VECT+1
-                PC = (short) ((read((short) ((RESET_VECT & 0xFFFF) + 1)) << 8) | (PC & 0x00FF));
+                read((short) ((RESET_VECT & 0xFFFF) + 1), data -> PC = (short) ((data << 8) | (PC & 0x00FF)));
+                //PC = (short) ((read((short) ((RESET_VECT & 0xFFFF) + 1)) << 8) | (PC & 0x00FF));
                 stage = Stage.OPCODE;
             }
         }
@@ -652,9 +754,11 @@ public class MOS8501 implements CPU {
             } else if (decodeCycle == 5) { // push P on stack (with B flag cleared), decrement S
                 push((byte) (SR & ~Status.Bit.B));
             } else if (decodeCycle == 6) { // fetch new PCL from IRQ_VECT
-                PC = (short) ((PC & 0xFF00) | (read(IRQ_VECT)));
+                read(IRQ_VECT, data -> PC = (short) ((PC & 0xFF00) | data));
+                //PC = (short) ((PC & 0xFF00) | (read(IRQ_VECT)));
             } else { // fetch new PCH from IRQ_VECT+1, set I flag
-                PC = (short) ((read((short) ((IRQ_VECT & 0xFFFF) + 1)) << 8) | (PC & 0x00FF));
+                read((short) ((IRQ_VECT & 0xFFFF) + 1), data -> PC = (short) ((data << 8) | (PC & 0x00FF)));
+                //PC = (short) ((read((short) ((IRQ_VECT & 0xFFFF) + 1)) << 8) | (PC & 0x00FF));
                 status.irq(true);
                 stage = Stage.OPCODE;
             }
@@ -716,7 +820,7 @@ public class MOS8501 implements CPU {
     //      http://archive.6502.org/books/mcs6500_family_programming_manual.pdf
     // also https://www.masswerk.at/6502/6502_instruction_set.html
     //      http://www.unusedino.de/ec64/technical/aay/c64/bmain.htm
-    private final Map<String, Operation> ops = new HashMap<>() {{
+    private final Map<String, Operation> ops = new HashMap<String, Operation>() {{
         put("ADC", () -> { // add with carry
             result = (short) ((AC & 0xFF) + (operand & 0xFF) + status.carry());
             status.determineZero(result);
@@ -794,8 +898,10 @@ public class MOS8501 implements CPU {
         put("ORA", () -> status.determineNZ(AC |= operand));
         put("PHA", () -> push(AC));
         put("PHP", () -> push((byte) (SR | Status.Bit.O | Status.Bit.B)));
-        put("PLA", () -> status.determineNZ(AC = pull()));
-        put("PLP", () -> SR = (byte) (pull() | Status.Bit.O));
+        put("PLA", () -> pull(data -> status.determineNZ(AC = data)));
+        //put("PLA", () -> status.determineNZ(AC = pull()));
+        put("PLP", () -> pull(data -> SR = (byte) (data | Status.Bit.O)));
+        //put("PLP", () -> SR = (byte) (pull() | Status.Bit.O));
         put("ROL", () -> { // rotate left
             result = (short) (((operand & 0xFF) << 1) | status.carry());
             status.carry((operand & (1 << 7)) != 0);
@@ -847,13 +953,13 @@ public class MOS8501 implements CPU {
         // special instruction
         // should put data bus to 0xFF
         put("JAM", () -> {
-            System.err.println(cycles);
+            System.err.printf("PC = %04X, cycle = %d\n", PC, cycles);
             throw new RuntimeException("Machine is jammed!");
         });
 
         // undocumented opcodes
         // unstable instructions tested and mimicked from my personal C64
-        put("ANC", () -> { // AND #immediate, copy accu-bit 7 to carry
+        /*put("ANC", () -> { // AND #immediate, copy accu-bit 7 to carry
             status.determineNZ(AC &= operand);
             status.carry((AC & (1 << 7)) != 0);
         });
@@ -951,22 +1057,38 @@ public class MOS8501 implements CPU {
             status.determineNZ(result);
             status.determineCarry(result);
             AC = (byte) result;
-        });
+        });*/
     }};
 
-    private void ready(Pin.Level level) {
+    private void ready() {
+        Pin.Level level = rdy.level();
         if (level == Pin.Level.LOW && !halt)
             rdyCounter = 3;
         else if (level == Pin.Level.HIGH && halt)
             halt = false;
     }
 
-    private void aec(Pin.Level level) {
-        address.direction(level == Pin.Level.LOW ? Pin.Direction.HI_Z : Pin.Direction.OUTPUT);
+    private void aec() {
+        address.direction(aec.level() == Pin.Level.LOW ? Pin.Direction.HI_Z : Pin.Direction.OUTPUT);
     }
 
-    private void reset(Pin.Level level) {
-        if (level == Pin.Level.HIGH) {
+    private void gateIn() {
+        if (gate.level() == Pin.Level.HIGH) {
+            if (aec.level() == Pin.Level.LOW) {
+                rw.direction(Pin.Direction.HI_Z);
+            } else {
+                rw.direction(Pin.Direction.OUTPUT);
+                if (rw.level() == Pin.Level.LOW && lastData != null) {
+                    data.value(lastData);
+                    //lastData = null;
+                }
+            }
+            //rw.direction(aec.level() == Pin.Level.LOW ? Pin.Direction.HI_Z : Pin.Direction.OUTPUT);
+        }
+    }
+
+    private void reset() {
+        if (reset.level() == Pin.Level.HIGH) {
             maskIRQ = false;
             irqPending = false;
             rdyCounter = 0;
@@ -980,91 +1102,21 @@ public class MOS8501 implements CPU {
         }
     }
 
-    /*private void irq(Pin.Level level) {
-        irqPending = level == Pin.Level.HIGH;
-    }*/
-
-    public MOS8501() {
-        phi0.onChange((lvl) -> step());
-        rdy.onChange(this::ready);
-        aec.onChange(this::aec);
-        reset.onChange(this::reset);
-        //irq.onChange(this::irq);
+    private void halfstep() {
+        if (halfCycleOut != null && halfCycleIn != null) {
+            halfCycleOut.accept(halfCycleIn.get());
+            halfCycleOut = null;
+            halfCycleIn = null;
+        }
     }
 
-    /*public long getCycles() {
-        return cycles;
-    }
-
-    /*public void preload(byte[] memory) {
-        preload(memory, (short) 0x0000);
-    }
-
-    public void preload(byte[] memory, int begin) {
-        for (byte v : memory)
-            this.memory[begin++ & 0xFFFF] = v;
-    }
-
-    public byte peek(int address) {
-        return memory[address & 0xFFFF];
-    }
-
-    public short lastPC() {
-        return lastIrrPC;
-    }
-
-    private boolean change = false;
-    public short lastIrrPC = 0x0000;
-    public boolean step() {
-        irqPending = (irq.level() == Pin.Level.LOW && status.irq() == 0 && !maskIRQ);
-        if (maskIRQ)
-            maskIRQ = false;
-
-        if (halt)
-            return false;
-
-        if (rdy.level() == Pin.Level.LOW && rdyCounter != 0) {
-            rdyCounter--;
-            if (rdyCounter == 0)
-                halt = true;
+    private void step() {
+        if (phi0.level() == Pin.Level.HIGH) {
+            halfstep();
+            return;
         }
 
-        cycles++;
-        change = false;
-
-        if (stage == Stage.DECODE) {
-            decodeCycle++;
-            decoding.decode();
-        }
-
-        if (stage == Stage.OPCODE) {
-            if (irqPending) {
-                irqPending = false;
-                addr.irq();
-            }
-
-            change = true;
-            lastIrrPC = PC;
-
-            if (irqPending && status.irq() == 0) {
-                irqPending = false;
-                decoding = addr::irq;
-            } else {
-                addr.fetchOp();
-                decoding = modes[opcode & 0xFF];
-            }
-            decodeCycle = 1;
-        }
-
-        if (stage == Stage.EXECUTE) {
-            ops.get(mnemonic[opcode & 0xFF]).execute();
-            stage = Stage.OPCODE;
-        }
-
-        return change;//stage == Stage.OPCODE;
-    }*/
-
-    public void step() {
+        lastData = null;
         irqPending = (irq.level() == Pin.Level.LOW && status.irq() == 0 && !maskIRQ);
         if (maskIRQ)
             maskIRQ = false;
@@ -1079,12 +1131,30 @@ public class MOS8501 implements CPU {
         }
 
         cycles++;
-        if (stage == Stage.DECODE) {
-            decodeCycle++;
-            decoding.decode();
+        if (stage == Stage.MEMORY)
+            stage = Stage.OPCODE;
+
+        if (stage == Stage.FETCH) {
+            decoding = modes[opcode & 0xFF];
+            stage = Stage.DECODE;
+        }
+
+        if (stage == Stage.EXECUTE) {
+            try {
+                ops.get(mnemonic[opcode & 0xFF]).execute();
+            } catch (NullPointerException ex) {
+                ex.printStackTrace();
+                System.err.printf("PC = %04X, cycle = %d\n", PC, cycles);
+                System.exit(1);
+            }
+
+            stage = (halfCycleOut == null && halfCycleIn == null) ? Stage.OPCODE : Stage.MEMORY;
         }
 
         if (stage == Stage.OPCODE) {
+            decodeCycle = 1;
+            lastPos = PC;
+
             if (irqPending) {
                 irqPending = false;
                 addr.irq();
@@ -1095,22 +1165,64 @@ public class MOS8501 implements CPU {
                 decoding = addr::irq;
             } else {
                 addr.fetchOp();
-                decoding = modes[opcode & 0xFF];
+                //System.out.println(mnemonic());
             }
-            decodeCycle = 1;
         }
 
-        if (stage == Stage.EXECUTE) {
-            ops.get(mnemonic[opcode & 0xFF]).execute();
-            stage = Stage.OPCODE;
+        if (stage == Stage.DECODE) {
+            decodeCycle++;
+            decoding.decode();
         }
+    }
+
+    void counter(short newPC) {
+        this.PC = newPC;
+    }
+
+    void start() {
+        stage = Stage.OPCODE;
+        halt = false;
+    }
+
+    public MOS8501() {
+        phi0.onChange(this::step);
+        rdy.onChange(this::ready);
+        aec.onChange(this::aec);
+        gate.onChange(this::gateIn);
+        reset.onChange(this::reset);
+    }
+
+    public boolean isHalted() {
+        return halt;
+    }
+
+    public long cycles() {
+        return cycles;
+    }
+
+    public short counter() {
+        return PC;
+    }
+
+    public short lastOpcodePosition() {
+        return lastPos;
+    }
+
+    public String mnemonic() {
+        String op = mnemonic[opcode & 0xFF];
+        return ops.containsKey(op) ? op : "***";
+    }
+
+    public String reg() {
+        return String.format("%04X %02X %02X %02X %02X %02X", PC, SR, AC, XR, YR, SP);
     }
 
     @Override
     public String toString() {
-        var sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         sb.append("  PC  SR AC XR YR SP  NV-BDIZC\n");
-        sb.append(String.format(";%04X %02X %02X %02X %02X %02X  ", PC, SR, AC, XR, YR, SP));
+        //sb.append(String.format(";%04X %02X %02X %02X %02X %02X  ", PC, SR, AC, XR, YR, SP));
+        sb.append(String.format(";%s  ", reg()));
         sb.append(String.format("%8s", Integer.toString(SR & 0xFF, 2)).replace(' ', '0'));
         if (halt)
             sb.append("\n\tThe CPU is halted!");

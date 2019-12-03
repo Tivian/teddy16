@@ -11,4 +11,16 @@ public abstract class Memory {
         this.address = address;
         this.content = new byte[size];
     }
+
+    public byte peek(int address) {
+        return content[address];
+    }
+
+    public void poke(int address, byte data) {
+        content[address] = data;
+    }
+
+    public int size() {
+        return content.length;
+    }
 }

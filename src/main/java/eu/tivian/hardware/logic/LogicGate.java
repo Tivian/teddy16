@@ -2,7 +2,7 @@ package eu.tivian.hardware.logic;
 
 import eu.tivian.hardware.Pin;
 
-class LogicGate {
+public class LogicGate {
     public enum Type {
         NOT, NAND, NOR, AND, OR, XOR, XNOR
     }
@@ -13,6 +13,10 @@ class LogicGate {
     public final Pin inputA;
     public final Pin inputB;
     public final Pin output;
+
+    public LogicGate(Type type) {
+        this(type.toString() + " gate", type);
+    }
 
     public LogicGate(String name, Type type) {
         this.name = name;
@@ -28,9 +32,10 @@ class LogicGate {
 
         inputA.onChange(this::update);
         inputB.onChange(this::update);
+        update();
     }
 
-    private void update(Pin.Level level) {
+    private void update() {
         switch (type) {
             case NOT:
                 output.level(!inputA.level().bool());

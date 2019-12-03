@@ -1,17 +1,27 @@
 package eu.tivian.hardware;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class Bus implements Iterable<Pin> {
-    public final String name;
-    public final List<Pin> pins;
-    private List<Wire> wires = null;
-    private Consumer<Long> onChange = null;
+    private final String name;
+    private final List<Pin> pins;
+    private final Set<Bus> connections;
+    //private Consumer<Long> onChange = null;
+    private Runnable onChange = null;
     private Pin.Direction direction;
+
+    Bus(List<Pin> pins) {
+        this("", pins);
+    }
+
+    Bus(String name, List<Pin> pins) {
+        this.name = name;
+        this.pins = new ArrayList<>(pins);
+        this.connections = new HashSet<>();
+        this.direction = pins.get(0).direction();
+    }
 
     public Bus(String name, String prefix, int length) {
         this(name, prefix, Pin.Direction.HI_Z, length);
@@ -20,6 +30,7 @@ public class Bus implements Iterable<Pin> {
     public Bus(String name, String prefix, Pin.Direction direction, int length) {
         this.name = name;
         this.direction = direction;
+        this.connections = new HashSet<>();
 
         List<Pin> temp = new ArrayList<>();
         for (int i = 0; i < length; i++)
@@ -27,19 +38,41 @@ public class Bus implements Iterable<Pin> {
         pins = Collections.unmodifiableList(temp);
     }
 
-    public void connect(Bus other) {
-        if (other.pins.size() != pins.size())
-            throw new IllegalArgumentException("Buses that you want to connect don't have the same number of pins");
+    public Pin get(int i) {
+        return pins.get(i);
+    }
 
-        if (other.wires != null) {
-            wires = other.wires;
-        } else {
-            wires = new ArrayList<>();
-            other.wires = wires;
+    public int size() {
+        return pins.size();
+    }
+
+    public Bus connect(Bus other) {
+        return connect(other, i -> i);
+    }
+
+    public Bus connect(Bus other, Function<Integer, Integer> mapper) {
+        if (!connections.contains(other)) {
+            for (int i = 0; i < pins.size(); i++) {
+                int index = mapper.apply(i);
+                if (index >= 0)
+                    other.pins.get(index).connect(pins.get(i));
+            }
+
+            connections.add(other);
+            other.connections.add(this);
         }
 
-        for (int i = 0; i < pins.size(); i++)
-            other.wires.get(i).connect(pins.get(i));
+        return this;
+    }
+
+    public void disconnect() {
+        for (Bus b : connections)
+            b.disconnect(this);
+        connections.clear();
+    }
+
+    public void disconnect(Bus other) {
+        connections.remove(other);
     }
 
     public Pin.Direction direction() {
@@ -51,11 +84,28 @@ public class Bus implements Iterable<Pin> {
         this.direction = direction;
     }
 
+    public void direction(long direction) {
+        for (Pin p : pins) {
+            p.direction((direction & 1) != 0 ? Pin.Direction.OUTPUT : Pin.Direction.INPUT);
+            direction >>= 1;
+        }
+    }
+
+    public long dirValue() {
+        long val = 0x00;
+        for (int i = pins.size() - 1; i >= 0; i--) {
+            val <<= 1;
+            val |= pins.get(i).direction() == Pin.Direction.OUTPUT ? 1 : 0;
+        }
+
+        return val;
+    }
+
     public long value() {
         long val = 0x00;
-        for (Pin p : pins) {
-            val |= p.level() == Pin.Level.HIGH ? 1 : 0;
+        for (int i = pins.size() - 1; i >= 0; i--) {
             val <<= 1;
+            val |= pins.get(i).level() == Pin.Level.HIGH ? 1 : 0;
         }
 
         return val;
@@ -63,21 +113,28 @@ public class Bus implements Iterable<Pin> {
 
     public void value(long val) {
         boolean changed = false;
-        long newValue = val;
+        //long newValue = val;
 
         if (direction == Pin.Direction.HI_Z)
             return;
 
-        for (Pin p : pins) {
-            changed = changed || p.level((val & 1) != 0);
+        for (Pin pin : pins) {
+            if (pin.level((val & 1) != 0))
+                changed = true;
             val >>= 1;
         }
 
-        if (changed)
-            onChange.accept(newValue);
+        if (changed) {
+            for (Bus b : connections) {
+                if (b.direction == Pin.Direction.INPUT && b.onChange != null)
+                    b.onChange.run();
+                    //b.onChange.accept(newValue);
+            }
+        }
     }
 
-    public void onChange(Consumer<Long> onChange) {
+    //public void onChange(Consumer<Long> onChange) {
+    public void onChange(Runnable onChange) {
         this.onChange = onChange;
     }
 
@@ -88,6 +145,6 @@ public class Bus implements Iterable<Pin> {
 
     @Override
     public String toString() {
-        return name;
+        return name + " [" + Long.toString(value(), 2) + "]";
     }
 }

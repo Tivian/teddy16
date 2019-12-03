@@ -6,12 +6,16 @@ import java.util.List;
 
 // Quad 2-input NOR gate
 public class IC74LS02 {
-    public final List<LogicGate> gate;
+    private final List<LogicGate> gate;
 
     public IC74LS02() {
         List<LogicGate> temp = new ArrayList<>();
         for (int i = 1; i <= 4; i++)
             temp.add(new LogicGate("Gate " + i, LogicGate.Type.NOR));
         gate = Collections.unmodifiableList(temp);
+    }
+
+    public LogicGate get(int i) {
+        return gate.get(i);
     }
 }

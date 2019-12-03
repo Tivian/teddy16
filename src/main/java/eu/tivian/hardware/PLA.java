@@ -12,7 +12,7 @@ public class PLA {
     public final List<Pin> output;
 
     public PLA() {
-        this(8, 16);
+        this(16, 8);
     }
 
     public PLA(int inputs, int outputs) {
@@ -28,9 +28,11 @@ public class PLA {
         for (int i = 0; i < outputs; i++)
             temp.add(new Pin("F" + i, Pin.Direction.OUTPUT));
         this.output = Collections.unmodifiableList(temp);
+
+        update();
     }
 
-    private void update(Pin.Level level) {
+    private void update() {
         boolean[] in = new boolean[input.size()];
         for (int i = 0; i < in.length; i++)
             in[i] = input.get(i).level().bool();

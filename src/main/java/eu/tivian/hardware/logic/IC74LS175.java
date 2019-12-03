@@ -8,7 +8,7 @@ import java.util.List;
 
 // quad d flip-flop
 public class IC74LS175 {
-    public final List<DFlipFlop> flipFlop;
+    private final List<DFlipFlop> flipFlop;
 
     public final Pin clock = new Pin("clock", Pin.Direction.INPUT);
     public final Pin reset = new Pin("master reset", Pin.Direction.INPUT);
@@ -19,7 +19,11 @@ public class IC74LS175 {
             temp.add(new DFlipFlop(clock, reset));
         flipFlop = Collections.unmodifiableList(temp);
 
-        reset.onChange(lvl -> flipFlop.forEach(DFlipFlop::reset));
-        clock.onChange(lvl -> flipFlop.forEach(DFlipFlop::update));
+        reset.onChange(() -> flipFlop.forEach(DFlipFlop::reset));
+        clock.onChange(() -> flipFlop.forEach(DFlipFlop::update));
+    }
+
+    public DFlipFlop get(int i) {
+        return flipFlop.get(i);
     }
 }

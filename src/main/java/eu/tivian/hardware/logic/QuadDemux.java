@@ -2,7 +2,7 @@ package eu.tivian.hardware.logic;
 
 import eu.tivian.hardware.Pin;
 
-class QuadDemux {
+public class QuadDemux {
     public final Pin enable = new Pin("enable", Pin.Direction.INPUT);
     public final Pin A0 = new Pin("A0", Pin.Direction.INPUT);
     public final Pin A1 = new Pin("A1", Pin.Direction.INPUT);
@@ -15,12 +15,13 @@ class QuadDemux {
         enable.onChange(this::update);
         A0.onChange(this::update);
         A1.onChange(this::update);
+        update();
     }
 
-    private void update(Pin.Level level) {
-        O0.level(!(enable.level() == Pin.Level.LOW && enable.level() == A0.level() && enable.level() == A1.level()));
-        O1.level(!(enable.level() == Pin.Level.LOW && enable.level() != A0.level() && enable.level() == A1.level()));
-        O2.level(!(enable.level() == Pin.Level.LOW && enable.level() == A0.level() && enable.level() != A1.level()));
-        O3.level(!(enable.level() == Pin.Level.LOW && enable.level() != A0.level() && enable.level() != A1.level()));
+    private void update() {
+        O0.level(enable.level() != Pin.Level.LOW || enable.level() != A0.level() || enable.level() != A1.level());
+        O1.level(enable.level() != Pin.Level.LOW || enable.level() == A0.level() || enable.level() != A1.level());
+        O2.level(enable.level() != Pin.Level.LOW || enable.level() != A0.level() || enable.level() == A1.level());
+        O3.level(enable.level() != Pin.Level.LOW || enable.level() == A0.level() || enable.level() == A1.level());
     }
 }

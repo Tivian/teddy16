@@ -12,6 +12,9 @@ public class DFlipFlop {
     public DFlipFlop(Pin clock, Pin reset) {
         this.clock = clock;
         this.reset = reset;
+
+        output.level(Pin.Level.LOW);
+        revOut.level(Pin.Level.HIGH);
     }
 
     void reset() {

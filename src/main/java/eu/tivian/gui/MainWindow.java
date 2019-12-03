@@ -25,4 +25,11 @@ public class MainWindow extends JPanel {
         //this.pack();
         //this.setDefaultCloseOperation(EXIT_ON_CLOSE);
     }
+
+    public void set(int x, int y, int color) {
+        //if (x == 0 && y == 0)
+            panel.repaint();
+
+        panel.image().setRGB(x, y, panel.palette().get(color).getRGB());
+    }
 }

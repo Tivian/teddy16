@@ -2,10 +2,12 @@ package eu.tivian.gui;
 
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 // based on https://www.colodore.com/
-public class Palette {
+public class Palette implements Iterable<Color> {
     public double brightness = 50.0;
     public double contrast = 100.0;
     public double saturation = 50.0;
@@ -34,10 +36,14 @@ public class Palette {
         return palette.get(i);
     }
 
+    public int size() {
+        return palette.size();
+    }
+
     private double gamma(double value) {
         value = Math.min(Math.max(value, 0), 255);
 
-        var factor = Math.pow(255, 1.0 - gammasrc);
+        double factor = Math.pow(255, 1.0 - gammasrc);
         value = Math.min(Math.max(factor * Math.pow(value, gammasrc), 0), 255);
 
         factor = Math.pow(255, 1.0 - 1.0 / gammatgt);
@@ -83,5 +89,10 @@ public class Palette {
                 palette.add(new Color((r << 16) | (g << 8) | b));
             }
         }
+    }
+
+    @Override
+    public Iterator<Color> iterator() {
+        return palette.iterator();
     }
 }

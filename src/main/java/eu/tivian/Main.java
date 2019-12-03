@@ -1,20 +1,12 @@
 package eu.tivian;
 
 import eu.tivian.gui.MainWindow;
-import eu.tivian.gui.TestImage;
-import eu.tivian.hardware.MOS8501;
-import eu.tivian.hardware.Pin;
-import eu.tivian.hardware.Wire;
-import eu.tivian.software.Monitor;
+import eu.tivian.hardware.Motherboard;
+import eu.tivian.other.SI;
 
 import javax.swing.*;
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Scanner;
+import java.util.Random;
 
 /*
       TODO list
@@ -39,6 +31,7 @@ import java.util.Scanner;
 public class Main {
     //public static MOS8501 cpu = new MOS8501();
     //public static Monitor monitor = new Monitor(cpu);
+    private static MainWindow window;
 
     private static void createAndShowGUI() {
         //Create and set up the window.
@@ -46,18 +39,44 @@ public class Main {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         //Create and set up the content pane.
-        JComponent contentPane = new MainWindow();
-        contentPane.setOpaque(true); //content panes must be opaque
-        frame.setContentPane(contentPane);
+        window = new MainWindow();
+        window.setOpaque(true); //content panes must be opaque
+        frame.setContentPane(window);
 
         //Display the window.
         //frame.pack();
-        frame.setSize(contentPane.getSize());
+        frame.setSize(window.getSize());
         frame.setVisible(true);
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(Main::createAndShowGUI);
+        SwingUtilities.invokeLater(() -> {
+            createAndShowGUI();
+            new Thread(() -> {
+                // X = [0, 455]
+                // Y = [0, 311]
+                /*long last = System.nanoTime();
+                int x = 0, y = 0;
+                while (true) {
+                    window.set(x, y, new Random().nextInt() & 0x7F);
+
+                    if (++x > 455) {
+                        x = 0;
+                        if (++y > 311) {
+                            y = 0;
+                            long now = System.nanoTime();
+                            System.out.printf("%fms\n", (now - last) * (SI.NANO / SI.MILLI));
+                            last = now;
+                        }
+                    }
+                }*/
+                Motherboard mb = new Motherboard();
+                mb.render(window::set);
+                mb.start();
+            }).start();
+        });
+        //TED ted = new TED();
+
         //var window = new MainWindow();
         //window.setVisible(true);
 

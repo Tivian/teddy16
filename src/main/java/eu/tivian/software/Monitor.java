@@ -2,10 +2,22 @@ package eu.tivian.software;
 
 import eu.tivian.hardware.CPU;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class Monitor {
+    public interface Poke {
+        void accept(short address, byte data);
+    }
+
+    public interface Peek {
+        byte get(short address);
+    }
+
     public static class Mode {
         int bytes;
         String format;
@@ -56,7 +68,7 @@ public class Monitor {
 /* 0xFL */  "rel", "izy", "imp", "izy", "zpx", "zpx", "zpx", "zpx", "imp", "aby", "imp", "aby", "abx", "abx", "abx", "abx"
     };
 
-    public static final Map<String, Mode> format = new HashMap<>() {{
+    public static final Map<String, Mode> format = new HashMap<String, Mode>() {{
         put("abs", new Mode(2, "$%02X%02X"));
         put("abx", new Mode(2, "$%02X%02X,X"));
         put("aby", new Mode(2, "$%02X%02X,Y"));
@@ -71,43 +83,45 @@ public class Monitor {
         put("zpy", new Mode(1, "$%02X,Y"));
     }};
 
-    /*private CPU cpu;
+    private final Peek peek;
+    private final Poke poke;
+    private final Supplier<String> reg;
     private Mode mode = null;
 
-    public Monitor(CPU cpu) {
-        this.cpu = cpu;
+    public Monitor(Peek peek, Poke poke, Supplier<String> reg) {
+        this.peek = peek;
+        this.poke = poke;
+        this.reg = reg;
     }
 
     public String memory(int start) {
-        var ascii = new StringBuilder();
-        var sb = new StringBuilder(":");
+        StringBuilder ascii = new StringBuilder();
+        StringBuilder sb = new StringBuilder(":");
 
         sb.append(String.format("%04X ", start));
         for (int i = 0; i < 8; i++) {
-            byte b = cpu.peek(start + i);
+            byte b = peek.get((short) (start + i));
             sb.append(String.format("%02X ", b));
-            ascii.append(Character.isAlphabetic(b) ? Character.toString(b) : ".");
+            //ascii.append(Character.isAlphabetic(b) ? Character.toString(b) : ".");
+            ascii.append(Character.isAlphabetic(b) ? new String(new byte[] { b }, 0, 1) : ".");
         }
 
         return sb.append(ascii.toString()).toString();
     }
 
-    public String line() {
-        return line(cpu.lastPC());
-    }
-
     public String line(int address) {
-        var sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
 
-        byte op = cpu.peek(address);
+        byte op = peek.get((short) address);
         sb.append(String.format(",%04X  %02X ", address & 0xFFFF, op));
         mode = format.get(addressing[op & 0xFF]);
         for (int i = 1; i <= mode.bytes; i++)
-            sb.append(String.format("%02X ", cpu.peek(address + i)));
-        sb.append("   ".repeat(2 - mode.bytes));
-        sb.append(" " + opcode[op & 0xFF] + " ");
+            sb.append(String.format("%02X ", peek.get((short) (address + i))));
+        //sb.append("   ".repeat(2 - mode.bytes));
+        sb.append(String.join("", Collections.nCopies(2 - mode.bytes, "   ")));
+        sb.append(" ").append(opcode[op & 0xFF]).append(" ");
         sb.append(String.format(mode.format,
-                cpu.peek(address + 1 + (mode.bytes == 2 ? 1 : 0)), cpu.peek(address + 1)));
+                peek.get((short) (address + 1 + (mode.bytes == 2 ? 1 : 0))), peek.get((short) (address + 1))));
 
         return sb.toString();
     }
@@ -125,7 +139,20 @@ public class Monitor {
             System.out.println(line(a));
             a += mode.bytes;
         }
-    }*/
+    }
+
+    public String walk(int address) {
+        StringBuilder sb = new StringBuilder();
+        byte op = peek.get((short) address);
+        mode = format.get(addressing[op & 0xFF]);
+
+        sb.append(" ").append(reg.get());
+        sb.append("  ").append(opcode[op & 0xFF]).append(" ");
+        sb.append(String.format(mode.format,
+                peek.get((short) (address + 1 + (mode.bytes == 2 ? 1 : 0))), peek.get((short) (address + 1))));
+
+        return sb.toString();
+    }
 }
 
 /* addressing modes

@@ -9,17 +9,37 @@ public class Pin {
 
     public enum Level {
         LOW, HIGH;
-
         public boolean bool() {
             return this == HIGH;
         }
     }
 
+    public static class Power extends Pin {
+        public Power() { super("Power", Direction.OUTPUT, Level.HIGH); }
+        @Override
+        public void direction(Direction dir) { return; }
+        @Override
+        public boolean level(Level value) { return false; }
+    }
+
+    public static class Ground extends Pin {
+        public Ground() { super("Ground", Direction.OUTPUT, Level.LOW); }
+        @Override
+        public void direction(Direction dir) { return; }
+        @Override
+        public boolean level(Level value) { return false; }
+    }
+
+    public static final Pin VCC = new Power();
+    public static final Pin GND = new Ground();
+
+    private final String name;
+
     private Wire wire;
     private Direction direction;
-    private Level level;
-    private final String name;
-    private Consumer<Level> onChange = null;
+    private Runnable onChange = null;
+    private boolean pullUp;
+    private Level level = Level.LOW;
 
     public Pin() {
         this("");
@@ -29,38 +49,91 @@ public class Pin {
         this(name, Direction.HI_Z);
     }
 
+    public Pin(Direction direction) {
+        this("", direction);
+    }
+
+    public Pin(Direction direction, Level level) {
+        this("", direction, level);
+    }
+
     public Pin(String name, Direction direction) {
         this(name, direction, Level.LOW);
     }
 
     public Pin(String name, Direction direction, Level level) {
+        this(name, direction, level, false);
+    }
+
+    public Pin(String name, Direction direction, Level level, boolean pullUp) {
         this.name = name;
         this.direction = direction;
-        this.level = level;
+        if (direction == Direction.OUTPUT)
+            this.level = level;
+        this.pullUp = pullUp;
         this.wire = null;
     }
 
-    public void connect(Wire wire) {
-        this.wire = wire;
+    public boolean isPulled() {
+        return pullUp;
     }
 
-    public void connect(Pin other) {
-        if (other.wire != null) {
-            wire = other.wire;
-        } else {
-            wire = new Wire();
-            other.wire = wire;
+    public void pullUp() {
+        pullUp(true);
+    }
+
+    public void pullUp(boolean pullUp) {
+        this.pullUp = pullUp;
+        if (wire != null)
+            wire.update(this);
+    }
+
+    public Pin connect(Wire wire) {
+        this.wire = wire;
+        return this;
+    }
+
+    public Pin connect(Pin other) {
+        if (other != this) {
+            if (wire != null) {
+                wire.connect(other);
+            } else if (other.wire == null) {
+                wire = new Wire();
+                wire.connect(this);
+                wire.connect(other);
+            } else {
+                other.wire.connect(this);
+            }
         }
 
-        other.wire.connect(this);
+        return this;
     }
 
     public void disconnect() {
-        this.wire = null;
+        if (wire != null) {
+            wire.disconnect(this);
+            this.wire = null;
+        }
+
+        if (direction == Direction.INPUT)
+            update(pullUp ? Level.HIGH : Level.LOW);
+    }
+
+    public void disconnect(Pin other) {
+        if (other == this)
+            return;
+
+        disconnect();
     }
 
     public void direction(Direction dir) {
+        Direction old = this.direction;
         this.direction = dir;
+
+        if (wire != null)
+            wire.update(this, dir);
+        else if (old == Direction.OUTPUT && dir == Direction.HI_Z)
+            level = pullUp ? Level.HIGH : Level.LOW;
     }
 
     public Direction direction() {
@@ -88,26 +161,38 @@ public class Pin {
         return level;
     }
 
+    public Wire wire() {
+        return wire;
+    }
+
     private void update() {
         if (wire != null)
             wire.update(this);
     }
 
-    void update(Wire notifier, Level level) {
-        if (direction == Direction.OUTPUT) {
-            throw new IllegalArgumentException("Output pin value cannot be changed externally!");
-        } else if (direction != Direction.HI_Z && notifier == wire && this.level != level) {
+    private void update(Level level) {
+        if (direction == Direction.INPUT) {
             this.level = level;
-            onChange.accept(level);
+            if (onChange != null)
+                onChange.run();
         }
     }
 
-    public void onChange(Consumer<Level> onChange) {
+    void update(Wire notifier) {
+        Level level = wire.level();
+        if (direction == Direction.INPUT && this.level != level) {
+            this.level = level;
+            if (onChange != null)
+                onChange.run();
+        }
+    }
+
+    public void onChange(Runnable onChange) {
         this.onChange = onChange;
     }
 
     @Override
     public String toString() {
-        return name;
+        return name + " [" + (level == Level.HIGH ? 1 : 0) + "]";
     }
 }

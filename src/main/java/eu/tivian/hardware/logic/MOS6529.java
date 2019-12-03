@@ -15,22 +15,26 @@ public class MOS6529 {
         rw.onChange(this::enable);
         data.onChange(this::update);
         port.onChange(this::update);
+
+        enable();
     }
 
-    private void enable(Pin.Level level) {
+    private void enable() {
         if (cs.level() == Pin.Level.HIGH) {
             data.direction(Pin.Direction.HI_Z);
             port.direction(Pin.Direction.HI_Z);
         } else if (rw.level() == Pin.Level.HIGH) {
-            data.direction(Pin.Direction.OUTPUT);
-            port.direction(Pin.Direction.INPUT);
-        } else {
             data.direction(Pin.Direction.INPUT);
             port.direction(Pin.Direction.OUTPUT);
+        } else {
+            data.direction(Pin.Direction.OUTPUT);
+            port.direction(Pin.Direction.INPUT);
         }
+
+        update();
     }
 
-    private void update(long value) {
+    private void update() {
         if (data.direction() == Pin.Direction.INPUT)
             port.value(data.value());
         else if (port.direction() == Pin.Direction.INPUT)

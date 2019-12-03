@@ -17,9 +17,10 @@ class TriState {
         this.inverting = inverting;
         this.input.onChange(this::update);
         this.enable.onChange(this::update);
+        update();
     }
 
-    private void update(Pin.Level level) {
+    private void update() {
         if (enable.level() == Pin.Level.HIGH) {
             output.direction(Pin.Direction.HI_Z);
         } else {

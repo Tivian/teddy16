@@ -3,6 +3,7 @@
     <output-path>$PROJECT_DIR$/out/artifacts/teddy16_jar</output-path>
     <root id="archive" name="teddy16.jar">
       <element id="module-output" name="teddy16" />
+      <element id="library" level="project" name="lib" />
     </root>
   </artifact>
 </component>

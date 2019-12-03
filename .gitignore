@@ -24,3 +24,6 @@ hs_err_pid*
 
 # Ouput folder
 out/
+
+# External folder
+external/
