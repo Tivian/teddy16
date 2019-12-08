@@ -50,10 +50,10 @@ public class Motherboard {
     public Motherboard() {
         this.cpu    = new MOS8501();
         this.ted    = new TED();
-        this.ram1   = new RAM(8, 4, 16384);
-        this.ram2   = new RAM(8, 4, 16384);
-        this.basic  = new ROM("BASIC", 16384);
-        this.kernal = new ROM("KERNAL", 16384);
+        this.ram1   = new RAM(8, 4, 0x4000);
+        this.ram2   = new RAM(8, 4, 0x4000);
+        this.basic  = new ROM("BASIC", 0x4000);
+        this.kernal = new ROM("KERNAL", 0x4000);
         this.pla    = new PLA();
 
         this.clock    = new SystemClock();
@@ -83,7 +83,7 @@ public class Motherboard {
         this.resetSw = new Switch("SW2", GND, timer.trigger);
 
         try {
-            byte[] buffer = new byte[0x10000];
+            byte[] buffer = new byte[0x4000];
             getClass().getResourceAsStream("/roms/kernal.318004-05.bin").read(buffer);
             kernal.preload(buffer);
             getClass().getResourceAsStream("/roms/basic.318006-01.bin").read(buffer);

@@ -10,11 +10,11 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 public class RenderPanel extends JPanel {
-    private int width;
-    private int height;
+    protected int width;
+    protected int height;
 
-    private Palette pal;
-    private BufferedImage image;
+    protected Palette pal;
+    protected BufferedImage image;
 
     public RenderPanel() {
         this.width = 720;
