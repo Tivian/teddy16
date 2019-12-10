@@ -1,5 +1,7 @@
 package eu.tivian.hardware;
 
+import eu.tivian.other.Logger;
+
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -112,6 +114,9 @@ public class MOS8501 implements CPU {
         if (!halt && (rdy.level() == Pin.Level.LOW))
             halt = true;
 
+        if (Logger.ENABLE)
+            Logger.info(String.format("Read from 0x%04X", address));
+
         halfCycleOut = readCycle;
         if (address == IO_DIR_VECT) {
             /*byte value = 0x00;
@@ -142,6 +147,9 @@ public class MOS8501 implements CPU {
     }
 
     protected void write(short address, byte value) {
+        if (Logger.ENABLE)
+            Logger.info(String.format("Write 0x%02X to 0x%04X", address, value));
+
         if (address == IO_DIR_VECT) {
             port.direction(value);
             /*for (Pin p : port) {
@@ -1079,6 +1087,8 @@ public class MOS8501 implements CPU {
             } else {
                 rw.direction(Pin.Direction.OUTPUT);
                 if (rw.level() == Pin.Level.LOW && lastData != null) {
+                    if (Logger.ENABLE)
+                        Logger.info("Output again data to data bus");
                     data.value(lastData);
                     //lastData = null;
                 }
@@ -1088,6 +1098,9 @@ public class MOS8501 implements CPU {
     }
 
     private void reset() {
+        if (Logger.ENABLE)
+            Logger.info("Resetting CPU");
+
         if (reset.level() == Pin.Level.HIGH) {
             maskIRQ = false;
             irqPending = false;
@@ -1104,6 +1117,9 @@ public class MOS8501 implements CPU {
 
     private void halfstep() {
         if (halfCycleOut != null && halfCycleIn != null) {
+            if (Logger.ENABLE)
+                Logger.info(String.format("Halfcycle memory access [0x%02X]", halfCycleIn.get()));
+
             halfCycleOut.accept(halfCycleIn.get());
             halfCycleOut = null;
             halfCycleIn = null;
@@ -1130,17 +1146,29 @@ public class MOS8501 implements CPU {
                 halt = true;
         }
 
+        // when PC == 0xFC29 mnemonic shouldn't be CPX
         cycles++;
-        if (stage == Stage.MEMORY)
+        if (stage == Stage.MEMORY) {
+            if (Logger.ENABLE)
+                Logger.info("Delayed execution, due to memory operation");
+
             stage = Stage.OPCODE;
+        }
 
         if (stage == Stage.FETCH) {
             decoding = modes[opcode & 0xFF];
+
+            if (Logger.ENABLE)
+                Logger.info(String.format("Fetched %s", mnemonic[opcode & 0xFF]));
+
             stage = Stage.DECODE;
         }
 
         if (stage == Stage.EXECUTE) {
             try {
+                if (Logger.ENABLE)
+                    Logger.info(String.format("Executing %s", mnemonic[opcode & 0xFF]));
+
                 ops.get(mnemonic[opcode & 0xFF]).execute();
             } catch (NullPointerException ex) {
                 ex.printStackTrace();
@@ -1164,6 +1192,11 @@ public class MOS8501 implements CPU {
                 irqPending = false;
                 decoding = addr::irq;
             } else {
+                if (Logger.ENABLE) {
+                    Logger.info(String.format("Current CPU state (%d cycle):\n%s", cycles, this.toString()));
+                    Logger.info("Fetching new opcode");
+                }
+
                 addr.fetchOp();
                 //System.out.println(mnemonic());
             }
@@ -1171,6 +1204,10 @@ public class MOS8501 implements CPU {
 
         if (stage == Stage.DECODE) {
             decodeCycle++;
+
+            if (Logger.ENABLE)
+                Logger.info(String.format("Decoding %s, cycle %d", mnemonic[opcode & 0xFF], decodeCycle));
+
             decoding.decode();
         }
     }

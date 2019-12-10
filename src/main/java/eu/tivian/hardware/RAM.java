@@ -1,5 +1,7 @@
 package eu.tivian.hardware;
 
+import eu.tivian.other.Logger;
+
 import java.util.Arrays;
 import java.util.Random;
 
@@ -13,11 +15,16 @@ public class RAM extends Memory {
     private final int width;
 
     public RAM(int inputs, int outputs, int size) {
-        this(inputs, outputs, size, true);
+        this("RAM", inputs, outputs, size);
     }
 
-    public RAM(int inputs, int outputs, int size, boolean fillRandom) {
+    public RAM(String name, int inputs, int outputs, int size) {
+        this(name, inputs, outputs, size, true);
+    }
+
+    public RAM(String name, int inputs, int outputs, int size, boolean fillRandom) {
         super(
+            name,
             new Bus("data"   , "D", Pin.Direction.HI_Z , outputs),
             new Bus("address", "A", Pin.Direction.INPUT, inputs ),
             size
@@ -69,10 +76,15 @@ public class RAM extends Memory {
             state = State.COLUMN;
 
             int index = (column << 8) | row;
-            if (read)
+            if (read) {
+                if (Logger.ENABLE)
+                    Logger.info(String.format("Output: 0x%02X from %s at 0x%04X", content[index] & width, name, index));
                 data.value(content[index] & width);
-            else
+            } else {
+                if (Logger.ENABLE)
+                    Logger.info(String.format("Input: 0x%02X to %s at 0x%04X", content[index] & width, name, index));
                 content[index] = (byte) (data.value() & width);
+            }
             state = State.IDLE;
         /*} else if (state == State.COLUMN && (cas || ras)) {
             //int index = row * 64 + column;//(row * data.size() + column);

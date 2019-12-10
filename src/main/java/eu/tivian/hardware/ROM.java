@@ -1,5 +1,7 @@
 package eu.tivian.hardware;
 
+import eu.tivian.other.Logger;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,7 +11,7 @@ import java.util.List;
 
 // pinout based on CSG23128
 public class ROM extends Memory {
-    public final String name;
+    //public final String name;
     public final List<Pin> cs; // cs1 - inverted, cs2 - inverted, cs3 - not inverted
 
     public ROM(int size) {
@@ -18,11 +20,11 @@ public class ROM extends Memory {
 
     public ROM(String name, int size) {
         super(
+            name,
             new Bus("data"   , "D", Pin.Direction.HI_Z ,  8),
             new Bus("address", "A", Pin.Direction.INPUT, 14),
             size
         );
-        this.name = name;
 
         List<Pin> temp = new ArrayList<>();
         for (int i = 1; i <= 3; i++) {
@@ -51,8 +53,11 @@ public class ROM extends Memory {
     }
 
     private void update() {
-        if (data.direction() == Pin.Direction.OUTPUT)
+        if (data.direction() == Pin.Direction.OUTPUT) {
+            //if (Logger.ENABLE)
+                //Logger.info(String.format("Output: 0x%02X from %s ROM at 0x%04X", content[(int) address.value()], name, address.value()));
             data.value(content[(int) address.value()]);
+        }
     }
 
     @Override

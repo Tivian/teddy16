@@ -1,5 +1,6 @@
 package eu.tivian.hardware;
 
+import eu.tivian.other.Logger;
 import eu.tivian.other.SI;
 
 // clock frequencies:

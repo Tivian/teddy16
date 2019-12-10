@@ -1,6 +1,7 @@
 package eu.tivian.hardware;
 
 import eu.tivian.hardware.logic.*;
+import eu.tivian.other.Logger;
 import eu.tivian.other.SI;
 
 import java.io.IOException;
@@ -50,8 +51,8 @@ public class Motherboard {
     public Motherboard() {
         this.cpu    = new MOS8501();
         this.ted    = new TED();
-        this.ram1   = new RAM(8, 4, 0x4000);
-        this.ram2   = new RAM(8, 4, 0x4000);
+        this.ram1   = new RAM("RAM low ", 8, 4, 0x4000);
+        this.ram2   = new RAM("RAM high", 8, 4, 0x4000);
         this.basic  = new ROM("BASIC", 0x4000);
         this.kernal = new ROM("KERNAL", 0x4000);
         this.pla    = new PLA();
@@ -82,18 +83,31 @@ public class Motherboard {
         this.powerSw = new Switch("SW1", VCC, power.get(0));
         this.resetSw = new Switch("SW2", GND, timer.trigger);
 
+        if (Logger.ENABLE)
+            Logger.info("Creating motherboard");
+
         try {
             byte[] buffer = new byte[0x4000];
+
+            if (Logger.ENABLE)
+                Logger.info("Loading KERNAL ROM");
             getClass().getResourceAsStream("/roms/kernal.318004-05.bin").read(buffer);
             kernal.preload(buffer);
+
+            if (Logger.ENABLE)
+                Logger.info("Loading BASIC ROM");
             getClass().getResourceAsStream("/roms/basic.318006-01.bin").read(buffer);
             basic.preload(buffer);
         } catch (IOException ex) {
-            System.err.println("Cannot read the ROM files");
+            if (Logger.ENABLE)
+                Logger.error("Cannot read the ROM files");
             System.exit(1);
         }
 
         VCC.onChange(() -> running = VCC.level() == Pin.Level.HIGH);
+
+        if (Logger.ENABLE)
+            Logger.info("Making connections between ICs");
 
         // NE555 timer connections [U10]
         timer.output.connect(invhex.get(0).inputA); // /Reset line
@@ -232,24 +246,33 @@ public class Motherboard {
         // keyboard SPI [U13]
         keyPort.port.connect(keyboard.row);
 
+        if (Logger.ENABLE)
+            Logger.info("Initializing system clock frequency (4x PAL dot clock, for now)");
+
         clock.frequency(28.28800 * SI.MEGA);
     }
 
     public void start() {
+        if (Logger.ENABLE)
+            Logger.info("Switching on...");
+
         powerSw.on();
         loop();
     }
 
     public void stop() {
+        if (Logger.ENABLE)
+            Logger.info("Switching off...");
+
         powerSw.off();
         clock.clear();
     }
 
     private void loop() {
-        log();
+        //log();
         while (running) {
             clock.pulse();
-            log();
+            //log();
         }
         //log();
     }

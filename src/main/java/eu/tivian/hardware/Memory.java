@@ -3,10 +3,12 @@ package eu.tivian.hardware;
 public abstract class Memory {
     public final Bus data;
     public final Bus address;
+    public final String name;
 
     protected final byte[] content;
 
-    protected Memory(Bus data, Bus address, int size) {
+    protected Memory(String name, Bus data, Bus address, int size) {
+        this.name = name;
         this.data = data;
         this.address = address;
         this.content = new byte[size];
