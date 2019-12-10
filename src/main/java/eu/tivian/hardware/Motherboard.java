@@ -279,11 +279,11 @@ public class Motherboard {
 
     // TODO add CPU registry log
     private void log() {
-        if (clock.halfcycle() == 0) {
+        /*if (clock.halfcycle() == 0) {
             System.out.println("  ___________________________________________________________________________________________________________");
             System.out.println(" | halfcycle | PHI |  CPU | ROM | RAM |  RAS |  CAS |  MUX | RW | ADDR | DATA |     RAM STATE     | MNEMONIC |  PC  SR AC XR YR SP | MEMORY DUMP");
             System.out.println(" |-----------|-----|------|-----|-----|------|------|------|----|------|------|-------------------|----------|---------------------|");
-        }
+        }*/
 
         if ((clock.halfcycle() % 2) == 1) {
             boolean romAccess = basic.cs.get(0).level() == Pin.Level.LOW || kernal.cs.get(0).level() == Pin.Level.LOW;

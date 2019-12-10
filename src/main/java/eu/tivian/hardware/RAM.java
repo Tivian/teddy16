@@ -82,7 +82,7 @@ public class RAM extends Memory {
                 data.value(content[index] & width);
             } else {
                 if (Logger.ENABLE)
-                    Logger.info(String.format("Input: 0x%02X to %s at 0x%04X", content[index] & width, name, index));
+                    Logger.info(String.format("Input: 0x%02X to %s at 0x%04X", data.value() & width, name, index));
                 content[index] = (byte) (data.value() & width);
             }
             state = State.IDLE;

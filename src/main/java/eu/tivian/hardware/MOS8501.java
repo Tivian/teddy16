@@ -1,6 +1,8 @@
 package eu.tivian.hardware;
 
 import eu.tivian.other.Logger;
+import eu.tivian.software.Monitor;
+import sun.rmi.runtime.Log;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -148,7 +150,7 @@ public class MOS8501 implements CPU {
 
     protected void write(short address, byte value) {
         if (Logger.ENABLE)
-            Logger.info(String.format("Write 0x%02X to 0x%04X", address, value));
+            Logger.info(String.format("Write 0x%02X to memory at 0x%04X", value, address));
 
         if (address == IO_DIR_VECT) {
             port.direction(value);
@@ -795,7 +797,7 @@ public class MOS8501 implements CPU {
 /*0x80*/addr::imm   , addr::izxRW, addr::imm, addr::izxRW , addr::zpg_W , addr::zpg_W, addr::zpg_W, addr::zpg_W,
 /*0x88*/addr::imp   , addr::imm  , addr::imp, addr::imm   , addr::abs_W , addr::abs_W, addr::abs_W, addr::abs_W,
 /*0x90*/addr::rel   , addr::izyRW, addr::imp, addr::izyRW , addr::zpxRW , addr::zpxRW, addr::zpyRW, addr::zpyRW,
-/*0x98*/addr::imp   , addr::abyRW, addr::imp, addr::aby_W , addr::abxRW , addr::abxRW, addr::abyRW, addr::abyRW,
+/*0x98*/addr::imp   , addr::abyRW, addr::imp, addr::aby_W , addr::abxRW , addr::abx_W, addr::abyRW, addr::abyRW,
 /*0xA0*/addr::imm   , addr::izxR_, addr::imm, addr::izxR_ , addr::zpgR_ , addr::zpgR_, addr::zpgR_, addr::zpgR_,
 /*0xA8*/addr::imp   , addr::imm  , addr::imp, addr::imm   , addr::absR_ , addr::absR_, addr::absR_, addr::absR_,
 /*0xB0*/addr::rel   , addr::izyR_, addr::imp, addr::izyR_ , addr::zpxR_ , addr::zpxR_, addr::zpyR_, addr::zpyR_,
@@ -1068,7 +1070,11 @@ public class MOS8501 implements CPU {
         });*/
     }};
 
+    // TODO check RDY pin change behaviour
     private void ready() {
+        if (Logger.ENABLE)
+            Logger.info(String.format("RDY pin changed to %s", rdy.level()));
+
         Pin.Level level = rdy.level();
         if (level == Pin.Level.LOW && !halt)
             rdyCounter = 3;
@@ -1076,11 +1082,19 @@ public class MOS8501 implements CPU {
             halt = false;
     }
 
+    // TODO check AEC pin change behaviour
     private void aec() {
+        if (Logger.ENABLE)
+            Logger.info(String.format("AEC pin changed to %s", aec.level()));
+
         address.direction(aec.level() == Pin.Level.LOW ? Pin.Direction.HI_Z : Pin.Direction.OUTPUT);
     }
 
+    // TODO check GATE_IN pin change behaviour
     private void gateIn() {
+        if (Logger.ENABLE)
+            Logger.info(String.format("GATE_IN pin changed to %s", gate.level()));
+
         if (gate.level() == Pin.Level.HIGH) {
             if (aec.level() == Pin.Level.LOW) {
                 rw.direction(Pin.Direction.HI_Z);
@@ -1146,20 +1160,16 @@ public class MOS8501 implements CPU {
                 halt = true;
         }
 
-        // when PC == 0xFC29 mnemonic shouldn't be CPX
         cycles++;
-        if (stage == Stage.MEMORY) {
-            if (Logger.ENABLE)
-                Logger.info("Delayed execution, due to memory operation");
-
+        if (stage == Stage.MEMORY)
             stage = Stage.OPCODE;
-        }
 
         if (stage == Stage.FETCH) {
             decoding = modes[opcode & 0xFF];
 
             if (Logger.ENABLE)
-                Logger.info(String.format("Fetched %s", mnemonic[opcode & 0xFF]));
+                Logger.info(String.format("Fetched %s with %s addressing",
+                    mnemonic[opcode & 0xFF], Monitor.addressing[opcode & 0xFF]));
 
             stage = Stage.DECODE;
         }
@@ -1186,6 +1196,9 @@ public class MOS8501 implements CPU {
             if (irqPending) {
                 irqPending = false;
                 addr.irq();
+
+                if (Logger.ENABLE)
+                    Logger.info("External interrupt occurred!");
             }
 
             if (irqPending && status.irq() == 0) {

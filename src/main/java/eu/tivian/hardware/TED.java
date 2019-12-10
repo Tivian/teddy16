@@ -4,6 +4,9 @@ package eu.tivian.hardware;
 //  28.63636 MHz for NTSC
 //  28.28800 MHz for PAL
 
+import eu.tivian.other.Logger;
+import sun.rmi.runtime.Log;
+
 import java.util.Random;
 
 // MOS 8360
@@ -105,11 +108,19 @@ public class TED implements AutoCloseable {
         }
 
         address.direction(internal.ba() == 0 ? Pin.Direction.OUTPUT : Pin.Direction.INPUT);
-        if (address.direction() == Pin.Direction.OUTPUT)
-            address.value(internal.addr_out());
+        if (address.direction() == Pin.Direction.OUTPUT) {
+            if (Logger.ENABLE)
+                Logger.info(String.format("TED wants to read memory at 0x%04X", internal.addr_out()));
 
-        if (internal.tedreg() == 1 && data.direction() == Pin.Direction.OUTPUT)
+            address.value(internal.addr_out());
+        }
+
+        if (internal.tedreg() == 1 && data.direction() == Pin.Direction.OUTPUT) {
+            if (Logger.ENABLE)
+                Logger.info(String.format("TED wants to write memory at 0x%04X", internal.data_out()));
+
             data.value(internal.data_out());
+        }
 
         phiOut.level(internal.cpuclk() != 0);
     }

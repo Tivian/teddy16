@@ -160,6 +160,9 @@ public class Pin {
     }
 
     public Level level() {
+        if (Logger.ENABLE && direction == Direction.HI_Z)
+            Logger.warn("Reading from HI-Z pin!");
+
         return level;
     }
 
