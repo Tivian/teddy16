@@ -2,8 +2,6 @@ package eu.tivian.hardware;
 
 import eu.tivian.other.Logger;
 
-import java.util.function.Consumer;
-
 public class Pin {
     public enum Direction {
         INPUT, OUTPUT, HI_Z

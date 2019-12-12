@@ -269,10 +269,22 @@ public class Motherboard {
     }
 
     private void loop() {
+        Pin.Level old = Pin.Level.LOW;
+
         //log();
         while (running) {
             clock.pulse();
-            //log();
+            if (Logger.ENABLE) {
+                Pin.Level current = ted.phiOut.level();
+                if (current != old) {
+                    if (current == Pin.Level.LOW)
+                        Logger.info("Current RAM state:\n" + RAMDump());
+                    old = current;
+                }
+            }
+
+            if ((cpu.PC & 0xFFFF) >= 0xFC2A && (cpu.PC & 0xFFFF) <= 0xFC30)
+                log();
         }
         //log();
     }

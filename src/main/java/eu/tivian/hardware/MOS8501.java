@@ -794,10 +794,10 @@ public class MOS8501 implements CPU {
 /*0x68*/addr::stk_PL, addr::imm  , addr::acc, addr::imm   , addr::indJMP, addr::absR_, addr::absRW, addr::absRW,
 /*0x70*/addr::rel   , addr::izyR_, addr::imp, addr::izyILL, addr::zpxR_ , addr::zpxR_, addr::zpxRW, addr::zpxRW,
 /*0x78*/addr::imp   , addr::abyR_, addr::imp, addr::abyRW , addr::abxR_ , addr::abxR_, addr::abxRW, addr::abxRW,
-/*0x80*/addr::imm   , addr::izxRW, addr::imm, addr::izxRW , addr::zpg_W , addr::zpg_W, addr::zpg_W, addr::zpg_W,
+/*0x80*/addr::imm   , addr::izx_W, addr::imm, addr::izx_W , addr::zpg_W , addr::zpg_W, addr::zpg_W, addr::zpg_W,
 /*0x88*/addr::imp   , addr::imm  , addr::imp, addr::imm   , addr::abs_W , addr::abs_W, addr::abs_W, addr::abs_W,
-/*0x90*/addr::rel   , addr::izyRW, addr::imp, addr::izyRW , addr::zpxRW , addr::zpxRW, addr::zpyRW, addr::zpyRW,
-/*0x98*/addr::imp   , addr::abyRW, addr::imp, addr::aby_W , addr::abxRW , addr::abx_W, addr::abyRW, addr::abyRW,
+/*0x90*/addr::rel   , addr::izy_W, addr::imp, addr::izy_W , addr::zpx_W , addr::zpx_W, addr::zpy_W, addr::zpy_W,
+/*0x98*/addr::imp   , addr::aby_W, addr::imp, addr::aby_W , addr::abx_W , addr::abx_W, addr::aby_W, addr::aby_W,
 /*0xA0*/addr::imm   , addr::izxR_, addr::imm, addr::izxR_ , addr::zpgR_ , addr::zpgR_, addr::zpgR_, addr::zpgR_,
 /*0xA8*/addr::imp   , addr::imm  , addr::imp, addr::imm   , addr::absR_ , addr::absR_, addr::absR_, addr::absR_,
 /*0xB0*/addr::rel   , addr::izyR_, addr::imp, addr::izyR_ , addr::zpxR_ , addr::zpxR_, addr::zpyR_, addr::zpyR_,
@@ -1070,7 +1070,6 @@ public class MOS8501 implements CPU {
         });*/
     }};
 
-    // TODO check RDY pin change behaviour
     private void ready() {
         if (Logger.ENABLE)
             Logger.info(String.format("RDY pin changed to %s", rdy.level()));
@@ -1130,7 +1129,7 @@ public class MOS8501 implements CPU {
     }
 
     private void halfstep() {
-        if (halfCycleOut != null && halfCycleIn != null) {
+        if (halfCycleOut != null && halfCycleIn != null && aec.level() == Pin.Level.HIGH) {
             if (Logger.ENABLE)
                 Logger.info(String.format("Halfcycle memory access [0x%02X]", halfCycleIn.get()));
 
@@ -1141,8 +1140,14 @@ public class MOS8501 implements CPU {
     }
 
     private void step() {
-        if (phi0.level() == Pin.Level.HIGH) {
+        /*if (phi0.level() == Pin.Level.HIGH) {
             halfstep();
+            return;
+        }*/
+        halfstep();
+        if (phi0.level() == Pin.Level.HIGH) {
+            if (Logger.ENABLE)
+                Logger.info("High-low transition of phi0");
             return;
         }
 
@@ -1159,6 +1164,9 @@ public class MOS8501 implements CPU {
             if (rdyCounter == 0)
                 halt = true;
         }
+
+        if (Logger.ENABLE)
+            Logger.info("New CPU cycle");
 
         cycles++;
         if (stage == Stage.MEMORY)
