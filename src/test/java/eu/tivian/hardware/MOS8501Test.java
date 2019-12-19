@@ -100,7 +100,7 @@ class MOS8501Test {
 
             assertEquals(end, cpu.counter());
             //assertEquals(cycles, cpu.cycles());
-            //System.out.println(cpu.cycles());
+            System.out.println(cpu.cycles());
             //assertTrue(cpu.cycles() > 1e8);
         }
     }
