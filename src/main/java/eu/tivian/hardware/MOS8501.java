@@ -2,7 +2,6 @@ package eu.tivian.hardware;
 
 import eu.tivian.other.Logger;
 import eu.tivian.software.Monitor;
-import sun.rmi.runtime.Log;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -62,15 +61,15 @@ public class MOS8501 implements CPU {
     public static final short RESET_VECT  = (short) 0xFFFC;
     public static final short IRQ_VECT    = (short) 0xFFFE;
 
-    private static final byte ANE_MAGIC    = (byte) 0xFE; // taken from my actual C64
-    private static final byte LXA_MAGIC    = (byte) 0xEE; // taken from my actual C64
+    private static final byte ANE_MAGIC    = (byte) 0xFE; // taken from my own C64
+    private static final byte LXA_MAGIC    = (byte) 0xEE; // taken from my own C64
 
     public byte  SR = 0b00100000;
     public short PC = 0x0000;
     public byte  AC = 0x00;
     public byte  XR = 0x00;
     public byte  YR = 0x00;
-    public byte  SP = (byte) 0xFF;
+    public byte  SP = 0x00;
 
     public final Status status = new Status();
 
@@ -117,34 +116,20 @@ public class MOS8501 implements CPU {
             halt = true;
 
         if (Logger.ENABLE)
-            Logger.info(String.format("Read from 0x%04X", address));
+            Logger.info(String.format("%s from 0x%04X", readCycle == null ? "Dummy read" : "Read", address));
 
         halfCycleOut = readCycle;
         if (address == IO_DIR_VECT) {
-            /*byte value = 0x00;
-            for (Pin p : port) {
-                value |= p.direction() == Pin.Direction.OUTPUT ? 1 : 0;
-                value <<= 1;
-            }*/
             halfCycleIn = () -> (byte) port.dirValue();
-            //return value;
         } else if (address == IO_VECT) {
             halfCycleIn = () -> (byte) port.value();
-            //return (byte) port.value();
-        } else if (aec.level() == Pin.Level.LOW) {
-            halfCycleIn = () -> (byte) 0x00;
-            //return 0x00;
+        //} else if (aec.level() == Pin.Level.LOW) {
+            //halfCycleIn = () -> (byte) 0x00;
         } else {
             rw.level(Pin.Level.HIGH);
             data.direction(Pin.Direction.INPUT);
             this.address.value(address);
             halfCycleIn = () -> (byte) (data.value() & 0xFF);
-            /*halfCycleIn = () -> {
-                byte value = (byte) (data.value() & 0xFF);
-                lastData = value;
-                return value;
-            };*/
-            //return (byte) (data.value() & 0xFF);
         }
     }
 
@@ -154,10 +139,6 @@ public class MOS8501 implements CPU {
 
         if (address == IO_DIR_VECT) {
             port.direction(value);
-            /*for (Pin p : port) {
-                p.direction((value & 1) != 0 ? Pin.Direction.OUTPUT : Pin.Direction.INPUT);
-                value >>= 1;
-            }*/
         } else if (address == IO_VECT) {
             port.value(value);
         } else if (aec.level() == Pin.Level.HIGH) {
@@ -169,7 +150,6 @@ public class MOS8501 implements CPU {
                 return value;
             };
             halfCycleOut = this.data::value;
-            //this.data.value(value);
         }
     }
 
@@ -1094,7 +1074,19 @@ public class MOS8501 implements CPU {
         if (Logger.ENABLE)
             Logger.info(String.format("GATE_IN pin changed to %s", gate.level()));
 
-        if (gate.level() == Pin.Level.HIGH) {
+        if (gate.level() == Pin.Level.HIGH && aec.level() == Pin.Level.LOW) {
+            rw.direction(Pin.Direction.HI_Z);
+        } else if (gate.level() == Pin.Level.LOW && aec.level() == Pin.Level.HIGH) {
+            rw.direction(Pin.Direction.OUTPUT);
+            if (rw.level() == Pin.Level.LOW && lastData != null) {
+                if (Logger.ENABLE)
+                    Logger.info("Output again data to data bus");
+                data.value(lastData);
+                lastData = null;
+            }
+        }
+
+        /*if (gate.level() == Pin.Level.HIGH) {
             if (aec.level() == Pin.Level.LOW) {
                 rw.direction(Pin.Direction.HI_Z);
             } else {
@@ -1107,7 +1099,7 @@ public class MOS8501 implements CPU {
                 }
             }
             //rw.direction(aec.level() == Pin.Level.LOW ? Pin.Direction.HI_Z : Pin.Direction.OUTPUT);
-        }
+        }*/
     }
 
     private void reset() {
@@ -1129,14 +1121,15 @@ public class MOS8501 implements CPU {
     }
 
     private void halfstep() {
-        if (halfCycleOut != null && halfCycleIn != null && aec.level() == Pin.Level.HIGH) {
+        //if (halfCycleOut != null && halfCycleIn != null && aec.level() == Pin.Level.HIGH) {
+        if (halfCycleOut != null && halfCycleIn != null) {
             if (Logger.ENABLE)
                 Logger.info(String.format("Halfcycle memory access [0x%02X]", halfCycleIn.get()));
-
             halfCycleOut.accept(halfCycleIn.get());
-            halfCycleOut = null;
-            halfCycleIn = null;
         }
+
+        halfCycleOut = null;
+        halfCycleIn = null;
     }
 
     private void step() {
@@ -1144,20 +1137,23 @@ public class MOS8501 implements CPU {
             halfstep();
             return;
         }*/
+        if (Logger.ENABLE)
+            Logger.info("phi0 is " + phi0.level());
+
         halfstep();
-        if (phi0.level() == Pin.Level.HIGH) {
-            if (Logger.ENABLE)
-                Logger.info("High-low transition of phi0");
+        if (phi0.level() == Pin.Level.HIGH)
             return;
-        }
 
         lastData = null;
         irqPending = (irq.level() == Pin.Level.LOW && status.irq() == 0 && !maskIRQ);
         if (maskIRQ)
             maskIRQ = false;
 
-        if (halt)
+        if (halt) {
+            if (Logger.ENABLE)
+                Logger.info("The CPU is halted");
             return;
+        }
 
         if (rdy.level() == Pin.Level.LOW && rdyCounter != 0) {
             rdyCounter--;
@@ -1169,67 +1165,73 @@ public class MOS8501 implements CPU {
             Logger.info("New CPU cycle");
 
         cycles++;
-        if (stage == Stage.MEMORY)
-            stage = Stage.OPCODE;
+        switch (stage) {
+            case MEMORY:
+                stage = Stage.OPCODE;
+                break;
 
-        if (stage == Stage.FETCH) {
-            decoding = modes[opcode & 0xFF];
-
-            if (Logger.ENABLE)
-                Logger.info(String.format("Fetched %s with %s addressing",
-                    mnemonic[opcode & 0xFF], Monitor.addressing[opcode & 0xFF]));
-
-            stage = Stage.DECODE;
-        }
-
-        if (stage == Stage.EXECUTE) {
-            try {
-                if (Logger.ENABLE)
-                    Logger.info(String.format("Executing %s", mnemonic[opcode & 0xFF]));
-
-                ops.get(mnemonic[opcode & 0xFF]).execute();
-            } catch (NullPointerException ex) {
-                ex.printStackTrace();
-                System.err.printf("PC = %04X, cycle = %d\n", PC, cycles);
-                System.exit(1);
-            }
-
-            stage = (halfCycleOut == null && halfCycleIn == null) ? Stage.OPCODE : Stage.MEMORY;
-        }
-
-        if (stage == Stage.OPCODE) {
-            decodeCycle = 1;
-            lastPos = PC;
-
-            if (irqPending) {
-                irqPending = false;
-                addr.irq();
+            case FETCH:
+                decoding = modes[opcode & 0xFF];
 
                 if (Logger.ENABLE)
-                    Logger.info("External interrupt occurred!");
-            }
+                    Logger.info(String.format("Fetched %s with %s addressing",
+                        mnemonic[opcode & 0xFF], Monitor.addressing[opcode & 0xFF]));
 
-            if (irqPending && status.irq() == 0) {
-                irqPending = false;
-                decoding = addr::irq;
-            } else {
-                if (Logger.ENABLE) {
-                    Logger.info(String.format("Current CPU state (%d cycle):\n%s", cycles, this.toString()));
-                    Logger.info("Fetching new opcode");
+                stage = Stage.DECODE;
+                break;
+
+            case DECODE:
+                decodeCycle++;
+
+                if (Logger.ENABLE)
+                    Logger.info(String.format("Decoding %s, cycle %d", mnemonic[opcode & 0xFF], decodeCycle));
+
+                decoding.decode();
+                break;
+
+            case EXECUTE:
+                try {
+                    if (Logger.ENABLE)
+                        Logger.info(String.format("Executing %s", mnemonic[opcode & 0xFF]));
+
+                    ops.get(mnemonic[opcode & 0xFF]).execute();
+                } catch (NullPointerException ex) {
+                    ex.printStackTrace();
+                    System.err.printf("PC = %04X, cycle = %d\n", PC, cycles);
+                    System.exit(1);
                 }
 
-                addr.fetchOp();
-                //System.out.println(mnemonic());
-            }
-        }
+                stage = (halfCycleOut == null && halfCycleIn == null) ? Stage.OPCODE : Stage.MEMORY;
+                break;
 
-        if (stage == Stage.DECODE) {
-            decodeCycle++;
+            case OPCODE:
+                decodeCycle = 1;
+                lastPos = PC;
 
-            if (Logger.ENABLE)
-                Logger.info(String.format("Decoding %s, cycle %d", mnemonic[opcode & 0xFF], decodeCycle));
+                /*if (irqPending) {
+                    irqPending = false;
+                    addr.irq();
 
-            decoding.decode();
+                    if (Logger.ENABLE)
+                        Logger.info("External interrupt occurred!");
+                }*/
+
+                if (irqPending && status.irq() == 0) {
+                    irqPending = false;
+                    decoding = addr::irq;
+                    stage = Stage.DECODE;
+
+                    if (Logger.ENABLE)
+                        Logger.info("External interrupt occurred!");
+                } else {
+                    if (Logger.ENABLE) {
+                        Logger.info(String.format("Current CPU state (%d cycle):\n%s", cycles, this.toString()));
+                        Logger.info("Fetching new opcode");
+                    }
+
+                    addr.fetchOp();
+                }
+                break;
         }
     }
 
@@ -1279,7 +1281,6 @@ public class MOS8501 implements CPU {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("  PC  SR AC XR YR SP  NV-BDIZC\n");
-        //sb.append(String.format(";%04X %02X %02X %02X %02X %02X  ", PC, SR, AC, XR, YR, SP));
         sb.append(String.format(";%s  ", reg()));
         sb.append(String.format("%8s", Integer.toString(SR & 0xFF, 2)).replace(' ', '0'));
         if (halt)

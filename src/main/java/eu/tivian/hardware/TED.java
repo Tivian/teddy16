@@ -5,7 +5,6 @@ package eu.tivian.hardware;
 //  28.28800 MHz for PAL
 
 import eu.tivian.other.Logger;
-import sun.rmi.runtime.Log;
 
 import java.util.Random;
 

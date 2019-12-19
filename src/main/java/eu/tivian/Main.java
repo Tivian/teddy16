@@ -2,11 +2,8 @@ package eu.tivian;
 
 import eu.tivian.gui.MainWindow;
 import eu.tivian.hardware.Motherboard;
-import eu.tivian.other.SI;
 
 import javax.swing.*;
-import java.io.IOException;
-import java.util.Random;
 
 /*
       TODO list
@@ -15,7 +12,7 @@ import java.util.Random;
 2) TED              [ ]
 3) PLA              [X]
 4) ROM              [X]
-5) RAM              [ ]
+5) RAM              [X]
 6) IC:
  - timer            [X]
  - quad flip-flop D [X]

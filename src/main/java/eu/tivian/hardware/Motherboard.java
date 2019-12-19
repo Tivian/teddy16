@@ -283,8 +283,8 @@ public class Motherboard {
                 }
             }
 
-            if ((cpu.PC & 0xFFFF) >= 0xFC2A && (cpu.PC & 0xFFFF) <= 0xFC30)
-                log();
+            //if ((cpu.PC & 0xFFFF) >= 0xFC2A && (cpu.PC & 0xFFFF) <= 0xFC30)
+                //log();
         }
         //log();
     }
