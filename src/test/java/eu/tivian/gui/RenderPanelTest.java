@@ -1,6 +1,6 @@
 package eu.tivian.gui;
 
-import jdk.nashorn.internal.ir.annotations.Ignore;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.*;
@@ -34,7 +34,7 @@ class RenderPanelTest {
     }
 
     @Test
-    @Ignore
+    @Disabled
     void show() {
         Thread gui = new Thread(() -> {
             JFrame frame = new JFrame();
