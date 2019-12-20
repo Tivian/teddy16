@@ -91,7 +91,7 @@ public class MOS8501 implements CPU {
     private byte    rdyCounter = 0;
 
     private Stage          stage       = Stage.OPCODE;
-    byte           decodeCycle = 0;
+            byte           decodeCycle = 0;
     private AddressingMode decoding    = null;
     private boolean        isAccu      = false;
 
@@ -407,7 +407,8 @@ public class MOS8501 implements CPU {
             if (decodeCycle == 2) { // fetch operand, increment PC
                 read(PC++, data -> operand = data);
                 //operand = read(PC++);
-            } else if (decodeCycle == 3) { // fetch opcode of next instruction
+            } else if (decodeCycle == 3) { // fetch opcode of next instruction and throw it away
+                read(PC);
                 ops.get(mnemonic[opcode & 0xFF]).execute();
                 if (offset == 0) { // branch not taken
                     maskIRQ = true; // sort of bug of the cpu, which causes IRQ to be missed if it occurred on skipped branch
@@ -417,7 +418,7 @@ public class MOS8501 implements CPU {
                     PC = (short) ((PC & 0xFF00) | (temp & 0x00FF));
                     carry = temp != PC;
                 }
-            } else if (decodeCycle == 4) { // fetch opcode of next instruction
+            } else if (decodeCycle == 4) { // fetch opcode of next instruction and throw it away
                 read(PC);
                 if (!carry)
                     stage = Stage.OPCODE;
@@ -1122,14 +1123,19 @@ public class MOS8501 implements CPU {
 
     private void halfstep() {
         //if (halfCycleOut != null && halfCycleIn != null && aec.level() == Pin.Level.HIGH) {
-        if (halfCycleOut != null && halfCycleIn != null) {
+
+        if (halfCycleIn != null) {
             if (Logger.ENABLE)
                 Logger.info(String.format("Halfcycle memory access [0x%02X]", halfCycleIn.get()));
-            halfCycleOut.accept(halfCycleIn.get());
+
+            if (halfCycleOut != null)
+                halfCycleOut.accept(halfCycleIn.get());
         }
 
-        halfCycleOut = null;
-        halfCycleIn = null;
+        if (aec.level() == Pin.Level.HIGH && gate.level() == Pin.Level.LOW) {
+            halfCycleOut = null;
+            halfCycleIn = null;
+        }
     }
 
     private void step() {
@@ -1140,9 +1146,10 @@ public class MOS8501 implements CPU {
         if (Logger.ENABLE)
             Logger.info("phi0 is " + phi0.level());
 
-        halfstep();
-        if (phi0.level() == Pin.Level.HIGH)
+        if (phi0.level() == Pin.Level.HIGH) {
+            halfstep();
             return;
+        }
 
         lastData = null;
         irqPending = (irq.level() == Pin.Level.LOW && status.irq() == 0 && !maskIRQ);
@@ -1165,48 +1172,40 @@ public class MOS8501 implements CPU {
             Logger.info("New CPU cycle");
 
         cycles++;
-        switch (stage) {
-            case MEMORY:
-                stage = Stage.OPCODE;
-                break;
+        //if (stage == Stage.MEMORY)
+            //stage = Stage.OPCODE;
 
-            case FETCH:
-                decoding = modes[opcode & 0xFF];
+        if (stage == Stage.FETCH) {
+            decoding = modes[opcode & 0xFF];
 
-                if (Logger.ENABLE)
-                    Logger.info(String.format("Fetched %s with %s addressing",
+            if (Logger.ENABLE)
+                Logger.info(String.format("Fetched %s with %s addressing",
                         mnemonic[opcode & 0xFF], Monitor.addressing[opcode & 0xFF]));
 
-                stage = Stage.DECODE;
-                break;
+            stage = Stage.DECODE;
+        }
 
-            case DECODE:
-                decodeCycle++;
-
+        if (stage == Stage.EXECUTE) {
+            try {
                 if (Logger.ENABLE)
-                    Logger.info(String.format("Decoding %s, cycle %d", mnemonic[opcode & 0xFF], decodeCycle));
+                    Logger.info(String.format("Executing %s", mnemonic[opcode & 0xFF]));
 
-                decoding.decode();
-                break;
+                ops.get(mnemonic[opcode & 0xFF]).execute();
+            } catch (NullPointerException ex) {
+                ex.printStackTrace();
+                System.err.printf("PC = %04X, cycle = %d\n", PC, cycles);
+                System.exit(1);
+            }
 
-            case EXECUTE:
-                try {
-                    if (Logger.ENABLE)
-                        Logger.info(String.format("Executing %s", mnemonic[opcode & 0xFF]));
+            //stage = (halfCycleOut == null && halfCycleIn == null) ? Stage.OPCODE : Stage.MEMORY;
+            stage = Stage.OPCODE;
+            if (halfCycleOut != null || halfCycleIn != null)
+                return;
+        }
 
-                    ops.get(mnemonic[opcode & 0xFF]).execute();
-                } catch (NullPointerException ex) {
-                    ex.printStackTrace();
-                    System.err.printf("PC = %04X, cycle = %d\n", PC, cycles);
-                    System.exit(1);
-                }
-
-                stage = (halfCycleOut == null && halfCycleIn == null) ? Stage.OPCODE : Stage.MEMORY;
-                break;
-
-            case OPCODE:
-                decodeCycle = 1;
-                lastPos = PC;
+        if (stage == Stage.OPCODE) {
+            decodeCycle = 1;
+            lastPos = PC;
 
                 /*if (irqPending) {
                     irqPending = false;
@@ -1216,22 +1215,30 @@ public class MOS8501 implements CPU {
                         Logger.info("External interrupt occurred!");
                 }*/
 
-                if (irqPending && status.irq() == 0) {
-                    irqPending = false;
-                    decoding = addr::irq;
-                    stage = Stage.DECODE;
+            if (irqPending && status.irq() == 0) {
+                irqPending = false;
+                decoding = addr::irq;
+                stage = Stage.DECODE;
 
-                    if (Logger.ENABLE)
-                        Logger.info("External interrupt occurred!");
-                } else {
-                    if (Logger.ENABLE) {
-                        Logger.info(String.format("Current CPU state (%d cycle):\n%s", cycles, this.toString()));
-                        Logger.info("Fetching new opcode");
-                    }
-
-                    addr.fetchOp();
+                if (Logger.ENABLE)
+                    Logger.info("External interrupt occurred!");
+            } else {
+                if (Logger.ENABLE) {
+                    Logger.info(String.format("Current CPU state (%d cycle):\n%s", cycles, this.toString()));
+                    Logger.info("Fetching new opcode");
                 }
-                break;
+
+                addr.fetchOp();
+            }
+        }
+
+        if (stage == Stage.DECODE) {
+            decodeCycle++;
+
+            if (Logger.ENABLE)
+                Logger.info(String.format("Decoding %s, cycle %d", mnemonic[opcode & 0xFF], decodeCycle));
+
+            decoding.decode();
         }
     }
 
