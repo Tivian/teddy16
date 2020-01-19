@@ -1,7 +1,10 @@
 package eu.tivian.other;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.logging.FileHandler;
+import java.util.logging.SimpleFormatter;
 
 public class Logger {
     public static final boolean ENABLE = true;
@@ -25,6 +28,20 @@ public class Logger {
         }
 
         return false;
+    }
+
+    public static boolean redirect(String path) {
+        try {
+            var fileHandler = new FileHandler(path);
+            log.addHandler(fileHandler);
+            var formatter = new SimpleFormatter();
+            fileHandler.setFormatter(formatter);
+            log.setUseParentHandlers(false);
+
+            return true;
+        } catch (IOException ex) {
+            return false;
+        }
     }
 
     public static void info(String msg) {

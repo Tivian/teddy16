@@ -2,6 +2,7 @@ package eu.tivian;
 
 import eu.tivian.gui.MainWindow;
 import eu.tivian.hardware.Motherboard;
+import eu.tivian.other.Logger;
 
 import javax.swing.*;
 
@@ -44,7 +45,25 @@ public class Main {
         frame.setVisible(true);
     }
 
+    private static void parseArgs(String[] args) {
+        for (int i = 0; i < args.length; i++) {
+            if (!args[i].startsWith("-"))
+                continue;
+
+            switch (args[i].charAt(1)) {
+                case 'l':
+                    if (i < args.length - 1 && !args[i + 1].startsWith("-"))
+                        Logger.redirect(args[++i]);
+                    //else
+                        //Logger.enable();
+                    break;
+            }
+        }
+    }
+
     public static void main(String[] args) {
+        parseArgs(args);
+
         SwingUtilities.invokeLater(() -> {
             createAndShowGUI();
             new Thread(() -> {

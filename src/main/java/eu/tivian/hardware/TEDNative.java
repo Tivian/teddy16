@@ -1,8 +1,20 @@
 package eu.tivian.hardware;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+
 class TEDNative {
     static {
-        System.loadLibrary("jni/ted");
+        //System.loadLibrary("jni/ted");
+        var stream = TEDNative.class.getResourceAsStream(System.mapLibraryName("/jni/ted"));
+
+        try {
+            var temp = Files.createTempFile("ted", System.mapLibraryName(""));
+            Files.copy(stream, temp, StandardCopyOption.REPLACE_EXISTING);
+            System.load(temp.toString());
+        } catch (IOException ex) { }
     }
 
     public native void init();
