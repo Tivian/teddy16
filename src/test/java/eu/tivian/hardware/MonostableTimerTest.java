@@ -7,7 +7,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Test suite for mono-stable operating NE555 timer.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see MonostableTimer
+ */
 class MonostableTimerTest {
+    /**
+     * Tests if timer output changes from LOW to HIGH and then to LOW due to time elapsed.
+     */
     @Test
     void logic() {
         AtomicInteger result = new AtomicInteger();

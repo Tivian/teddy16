@@ -5,7 +5,17 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Logic gates unit tests.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see LogicGate
+ */
 class LogicGateTest {
+    /**
+     * Tests single <b>NOT</b> logic gate.
+     */
     @Test
     void not() {
         Pin input = new Pin(Pin.Direction.OUTPUT);
@@ -20,6 +30,9 @@ class LogicGateTest {
         assertEquals(Pin.Level.LOW, gate.output.level()); // ~1 = 0
     }
 
+    /**
+     * Tests single <b>NAND</b> logic gate.
+     */
     @Test
     void nand() {
         Pin A = new Pin(Pin.Direction.OUTPUT);
@@ -41,6 +54,9 @@ class LogicGateTest {
         assertEquals(Pin.Level.HIGH, gate.output.level()); // ~(0 & 1) = 1
     }
 
+    /**
+     * Tests single <b>NOR</b> logic gate.
+     */
     @Test
     void nor() {
         Pin A = new Pin(Pin.Direction.OUTPUT);
@@ -62,6 +78,9 @@ class LogicGateTest {
         assertEquals(Pin.Level.LOW, gate.output.level()); // ~(0 | 1) = 0
     }
 
+    /**
+     * Tests single <b>AND</b> logic gate.
+     */
     @Test
     void and() {
         Pin A = new Pin(Pin.Direction.OUTPUT);
@@ -83,6 +102,9 @@ class LogicGateTest {
         assertEquals(Pin.Level.LOW, gate.output.level()); // 0 & 1 = 0
     }
 
+    /**
+     * Tests single <b>OR</b> logic gate.
+     */
     @Test
     void or() {
         Pin A = new Pin(Pin.Direction.OUTPUT);
@@ -104,7 +126,9 @@ class LogicGateTest {
         assertEquals(Pin.Level.HIGH, gate.output.level()); // 0 | 1 = 1
     }
 
-    // XOR, XNOR
+    /**
+     * Tests single <b>XOR</b> logic gate.
+     */
     @Test
     void xor() {
         Pin A = new Pin(Pin.Direction.OUTPUT);
@@ -126,6 +150,9 @@ class LogicGateTest {
         assertEquals(Pin.Level.HIGH, gate.output.level()); // 0 ^ 1 = 1
     }
 
+    /**
+     * Tests single <b>XNOR</b> logic gate.
+     */
     @Test
     void xnor() {
         Pin A = new Pin(Pin.Direction.OUTPUT);

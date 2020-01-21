@@ -5,7 +5,17 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Tri-state gate unit tests.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see TriState
+ */
 class TriStateTest {
+    /**
+     * Tests all possible states of the input pins against correct output pin values.
+     */
     @Test
     void logic() {
         TriState tri = new TriState();

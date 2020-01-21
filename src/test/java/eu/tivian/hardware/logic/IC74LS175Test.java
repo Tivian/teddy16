@@ -8,7 +8,17 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Quad D flip-flop unit tests.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see IC74LS175
+ */
 class IC74LS175Test {
+    /**
+     * Tests basic logic functionality of the chip.
+     */
     @Test
     void logic() {
         IC74LS175 flipFlop = new IC74LS175();

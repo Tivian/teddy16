@@ -4,18 +4,43 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.awt.image.ImageObserver;
 import java.awt.image.IndexColorModel;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+/**
+ * Panel to draw the pixel data from the emulator.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-08
+ * @see MainWindow
+ */
 public class RenderPanel extends JPanel {
+    /**
+     * Width of the panel.
+     * <br>For PAL output it should be 720 pixels wide.
+     */
     protected int width;
+    /**
+     * Height of the panel.
+     * <br>For PAL output it should be 576 pixels tall.
+     */
     protected int height;
 
+    /**
+     * Palette which should be used to translate supplied data to corresponding colors.
+     */
     protected Palette pal;
+    /**
+     * Image which should be drawn onto the emulator window.
+     */
     protected BufferedImage image;
 
+    /**
+     * Initialization of the panel, by default for the PAL output.
+     */
     public RenderPanel() {
         this.width = 720;
         this.height = 576;
@@ -65,25 +90,51 @@ public class RenderPanel extends JPanel {
         //return image;
     //}
 
+    /**
+     * Returns the image which represents the C16 screen.
+     * @return the image which represents the C16 screen
+     */
     public BufferedImage image() {
         return image;
     }
 
+    /**
+     * Returns currently used palette.
+     * @return currently used palette
+     */
     public Palette palette() {
         return pal;
     }
 
+    /**
+     * Scales given image by given factors.
+     *
+     * @param imageToScale image which should be scaled
+     * @param dWidth width factor
+     * @param dHeight height factor
+     * @return scaled image
+     * @see Graphics2D#drawImage(Image, int, int, ImageObserver)
+     */
     public static BufferedImage scale(BufferedImage imageToScale, int dWidth, int dHeight) {
         BufferedImage scaledImage = null;
+
         if (imageToScale != null) {
             scaledImage = new BufferedImage(dWidth, dHeight, imageToScale.getType());
             Graphics2D graphics2D = scaledImage.createGraphics();
             graphics2D.drawImage(imageToScale, 0, 0, dWidth, dHeight, null);
             graphics2D.dispose();
         }
+
         return scaledImage;
     }
 
+    /**
+     * Invoked by Swing to draw components.
+     *
+     * @param g the {@code Graphics} context in which to paint
+     * @see JPanel#paint(Graphics)
+     */
+    @Override
     public void paint(Graphics g){
         g.drawImage(image, 0, 0, this);
     }

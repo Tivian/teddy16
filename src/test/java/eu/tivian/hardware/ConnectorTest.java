@@ -4,7 +4,17 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Test suite for connectors.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see Connector
+ */
 class ConnectorTest {
+    /**
+     * Checks if two connectors behaves as expected.
+     */
     @Test
     void logic() {
         Connector male   = new Connector("test male"  , Connector.Gender.MALE  );

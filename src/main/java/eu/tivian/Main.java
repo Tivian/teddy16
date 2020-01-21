@@ -26,9 +26,23 @@ import javax.swing.*;
 
  */
 
+/**
+ * Starting point of the Commodore 16 emulator.
+ * <br><img src="https://www.c64-wiki.com/images/1/13/C16.jpg" alt="Commodore 16 photo">
+ *
+ * @author Paweł Kania
+ * @since 2019-10-29
+ * @see <a href="https://www.c64-wiki.com/wiki/Commodore_16">C16 wiki page</a>
+ */
 public class Main {
+    /**
+     * Main window of the emulator.
+     */
     private static MainWindow window;
 
+    /**
+     * Creates GUI.
+     */
     private static void createAndShowGUI() {
         // Create and set up the window.
         JFrame frame = new JFrame("teddy16");
@@ -45,6 +59,12 @@ public class Main {
         frame.setVisible(true);
     }
 
+    /**
+     * Parses arguments given by the {@code args} parameter.
+     * <br>Right now only '-l' is supported.
+     *
+     * @param args command-line arguments
+     */
     private static void parseArgs(String[] args) {
         for (int i = 0; i < args.length; i++) {
             if (!args[i].startsWith("-"))
@@ -61,6 +81,11 @@ public class Main {
         }
     }
 
+    /**
+     * Starting point of the emulator.
+     *
+     * @param args command-line arguments
+     */
     public static void main(String[] args) {
         parseArgs(args);
 

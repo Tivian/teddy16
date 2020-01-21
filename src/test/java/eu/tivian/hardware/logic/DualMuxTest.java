@@ -6,7 +6,17 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * 2-line to 4-line input multiplexer unit tests.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see DualMux
+ */
 class DualMuxTest {
+    /**
+     * Tests basic logic functionality of the multiplexer.
+     */
     @Test
     void logic() {
         Pin inEnable = new Pin("enable", Pin.Direction.INPUT);
@@ -53,6 +63,9 @@ class DualMuxTest {
         assertEquals(Pin.Level.HIGH, mux.output.level());
     }
 
+    /**
+     * Tests if RAM multiplexing works as supposed.
+     */
     @Test
     void ramMux() {
         IC74LS257 mux1 = new IC74LS257(), mux2 = new IC74LS257();

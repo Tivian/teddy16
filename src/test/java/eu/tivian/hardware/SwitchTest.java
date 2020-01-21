@@ -6,7 +6,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Test suite for switches.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see Switch
+ */
 class SwitchTest {
+    /**
+     * Checks if internal switch counter counts correctly.
+     */
     @Test
     void count() {
         new Switch(new Pin(), new Pin());
@@ -16,9 +26,12 @@ class SwitchTest {
         assertEquals("SW3", new Switch(new Pin(), new Pin()).toString());
     }
 
+    /**
+     * Checks if the switch behaves as it should.
+     */
     @Test
     void logic() {
-        Pin power = new Pin.Power();
+        Pin power = Pin.VCC;
         Pin output = new Pin(Pin.Direction.INPUT);
         Switch sw = new Switch(power, output);
 

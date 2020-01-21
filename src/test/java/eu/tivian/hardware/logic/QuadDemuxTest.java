@@ -5,7 +5,17 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Quad demultiplexer unit tests.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see QuadDemux
+ */
 class QuadDemuxTest {
+    /**
+     * Tests all truth table combination for quad demultiplexer.
+     */
     @Test
     void logic() {
         QuadDemux demux = new QuadDemux();

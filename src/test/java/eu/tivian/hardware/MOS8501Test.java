@@ -1,57 +1,47 @@
 package eu.tivian.hardware;
 
-import eu.tivian.software.Monitor;
+import eu.tivian.software.SimpleCPU;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * CPU test suite.
+ * <br>Processor functionality tested thanks to assembly language code made by Klaus Dormann.
+ * <br>Source code is available on <a href="https://github.com/amb5l/6502_65C02_functional_tests">GitHub</a>.
+ *
+ * @author Paweł Kania
+ * @author Klaus Dormann
+ * @since 2019-12-06
+ * @see MOS8501
+ */
 class MOS8501Test {
-    private class MockCPU extends MOS8501 {
-        byte[] memory = new byte[0x10000];
-
-        @Override
-        protected void read(short address, Consumer<Byte> readCycle) {
-            if (readCycle != null)
-                readCycle.accept(memory[address & 0xFFFF]);
-            //halfCycleIn = () -> memory[address & 0xFFFF];
-            //halfCycleOut = readCycle;
-        }
-
-        @Override
-        protected void write(short address, byte value) {
-            memory[address & 0xFFFF] = value;
-            //halfCycleIn = () -> value;
-            //halfCycleOut = data -> memory[address & 0xFFFF] = data;
-        }
-    }
-
-    private static Map<String, int[]> testCases = new HashMap<String, int[]>() {{
+    /**
+     * List of assembly language test programs with start and stop positions.
+     */
+    private static Map<String, int[]> testCases = new HashMap<>() {{
         put("/6502_functional_test.bin", new int[] { 0x0400, 0x3469, 150195818 });
         put("/6502_decimal_test.bin"   , new int[] { 0x0400, 0x044B,  53953824 });
     }};
 
-    //@Disabled
+    /**
+     * Checks if all valid instructions are evaluate correctly.
+     */
     @Test
     void step() {
-        MockCPU cpu = new MockCPU();
+        SimpleCPU cpu = new SimpleCPU();
         Pin reset = new Pin(Pin.Direction.OUTPUT, Pin.Level.HIGH);
         Pin irq = new Pin(Pin.Direction.OUTPUT, Pin.Level.HIGH);
         Pin clock = new Pin(Pin.Direction.OUTPUT);
 
-        Monitor monitor = new Monitor(
+        /*Monitor monitor = new Monitor(
             addr -> cpu.memory[addr & 0xFFFF],
             (addr, data) -> cpu.memory[addr & 0xFFFF] = data,
             cpu::reg
-        );
+        );*/
 
         //Path path = Paths.get("C:/Users/Pawel/Desktop/good.txt");
 
@@ -105,6 +95,9 @@ class MOS8501Test {
         }
     }
 
+    /**
+     * Checks if CPU is halted while the {@link MOS8501#reset} pin is held LOW.
+     */
     @Test
     void reset() {
         MOS8501 cpu = new MOS8501();

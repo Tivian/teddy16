@@ -4,7 +4,17 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Test suite for PLA chip.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see PLA
+ */
 class PLATest {
+    /**
+     * Checks if at idle the output is correct.
+     */
     @Test
     void logic() {
         PLA pla    = new PLA();

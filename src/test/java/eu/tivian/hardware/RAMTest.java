@@ -4,7 +4,17 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Test suite for the RAM chip.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see RAM
+ */
 class RAMTest {
+    /**
+     * Tests if reading from RAM chip works correctly.
+     */
     @Test
     void read() {
         TED ted = new TED();
@@ -29,11 +39,17 @@ class RAMTest {
                .connect(ramB.address, i -> i < 8 ? -1 : i - 8);
     }
 
+    /**
+     * Checks if writing to the RAM chips works correctly.
+     */
     @Test
     void write() {
 
     }
 
+    /**
+     * Checks if refresh signal is ignored as it should be.
+     */
     @Test
     void refresh() {
 

@@ -6,7 +6,17 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * SPI unit tests.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see MOS6529
+ */
 class MOS6529Test {
+    /**
+     * Tests the SPI chip with byte patters.
+     */
     @Test
     void logic() {
         int[] testValues = new int[] { 0x00, 0x01, 0x10, 0x55, 0xAA, 0xF0, 0x0F, 0xFF };

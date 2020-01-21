@@ -7,13 +7,29 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Test suite for the ROM chip.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see RAM
+ */
 class ROMTest {
+    /**
+     * Helper function to provide array of random bytes.
+     *
+     * @param size size of array
+     * @return array of random bytes
+     */
     private static byte[] randomArray(int size) {
         byte[] array = new byte[size];
         new Random().nextBytes(array);
         return array;
     }
 
+    /**
+     * Tests if chip correctly responds to the given addresses.
+     */
     @Test
     void logic() {
         int size = 0x4000;
@@ -46,6 +62,9 @@ class ROMTest {
         }
     }
 
+    /**
+     * Checks if preload function loads the file correctly.
+     */
     @Test
     void preload() {
         int size = 0x10000;

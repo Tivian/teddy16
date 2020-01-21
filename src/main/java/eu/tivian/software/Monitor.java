@@ -1,33 +1,72 @@
 package eu.tivian.software;
 
-import eu.tivian.hardware.CPU;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * Assembly language monitor.
+ * <br>Meant for the CPU debugging.
+ *
+ * @author Paweł Kania
+ * @since 2019-11-06
+ * @see SimpleCPU
+ * @see eu.tivian.hardware.MOS8501
+ */
 public class Monitor {
+    /**
+     * Functional interface for writing to the memory.
+     */
     public interface Poke {
+        /**
+         * Takes the byte and writes it into the memory at given address.
+         * @param address the memory cell index
+         * @param data value to write
+         */
         void accept(short address, byte data);
     }
 
+    /**
+     * Functional interface for reading the memory.
+     */
     public interface Peek {
+        /**
+         * Gets the value from the memory.
+         * @param address the memory cell index
+         * @return value stored in memory at specified address
+         */
         byte get(short address);
     }
 
+    /**
+     * Addressing mode formatter.
+     */
     public static class Mode {
+        /**
+         * Number of bytes taken by the addressing mode.
+         */
         int bytes;
+        /**
+         * Format string for the addressing mode.
+         */
         String format;
 
+        /**
+         * Initializes the formatter.
+         *
+         * @param bytes number of bytes taken by the addressing mode
+         * @param format format string
+         */
         public Mode(int bytes, String format) {
             this.bytes = bytes;
             this.format = format;
         }
     }
 
+    /**
+     * Mnemonics indexed by the opcode.
+     */
     public static final String[] opcode = {
 /*  H/L      0xH0   0xH1   0xH2   0xH3   0xH4   0xH5   0xH6   0xH7   0xH8   0xH9   0xHA   0xHB   0xHC   0xHD   0xHE   0xHF */
 /* 0x0L */  "BRK", "ORA", "JAM", "SLO", "NOP", "ORA", "ASL", "SLO", "PHP", "ORA", "ASL", "ANC", "NOP", "ORA", "ASL", "SLO",
@@ -48,6 +87,9 @@ public class Monitor {
 /* 0xFL */  "BEQ", "SBC", "JAM", "ISB", "NOP", "SBC", "INC", "ISB", "SED", "SBC", "NOP", "ISB", "NOP", "SBC", "INC", "ISB"
     };
 
+    /**
+     * Addressing modes indexed by the opcode.
+     */
     public static final String[] addressing = {
 /*  H/L      0xH0   0xH1   0xH2   0xH3   0xH4   0xH5   0xH6   0xH7   0xH8   0xH9   0xHA   0xHB   0xHC   0xHD   0xHE   0xHF */
 /* 0x0L */  "imp", "izx", "imp", "izx", "zpg", "zpg", "zpg", "zpg", "imp", "imm", "imp", "imm", "abs", "abs", "abs", "abs",
@@ -68,6 +110,9 @@ public class Monitor {
 /* 0xFL */  "rel", "izy", "imp", "izy", "zpx", "zpx", "zpx", "zpx", "imp", "aby", "imp", "aby", "abx", "abx", "abx", "abx"
     };
 
+    /**
+     * All addressing modes formats.
+     */
     public static final Map<String, Mode> format = new HashMap<String, Mode>() {{
         put("abs", new Mode(2, "$%02X%02X"));
         put("abx", new Mode(2, "$%02X%02X,X"));
@@ -83,17 +128,40 @@ public class Monitor {
         put("zpy", new Mode(1, "$%02X,Y"));
     }};
 
+    /**
+     *
+     */
     private final Peek peek;
+    /**
+     * Functor for writing to the memory.
+     */
     private final Poke poke;
+    /**
+     * Supplies the monitor with string containing the processor status registry.
+     */
     private final Supplier<String> reg;
+    /**
+     * Current addressing mode.
+     */
     private Mode mode = null;
 
+    /**
+     * Initializes the assembly language monitor.
+     * @param peek functor for reading the memory
+     * @param poke functor for writing to the memory
+     * @param reg supplier which returns current processor status registry
+     */
     public Monitor(Peek peek, Poke poke, Supplier<String> reg) {
         this.peek = peek;
         this.poke = poke;
         this.reg = reg;
     }
 
+    /**
+     * Dumps the memory from specified address into the string.
+     * @param start the starting address
+     * @return dump of the memeory
+     */
     public String memory(int start) {
         StringBuilder ascii = new StringBuilder();
         StringBuilder sb = new StringBuilder(":");
@@ -109,6 +177,11 @@ public class Monitor {
         return sb.append(ascii.toString()).toString();
     }
 
+    /**
+     * Formats instruction found at given address into assembly language.
+     * @param address memory location
+     * @return assembly language line
+     */
     public String line(int address) {
         StringBuilder sb = new StringBuilder();
 
@@ -126,14 +199,26 @@ public class Monitor {
         return sb.toString();
     }
 
+    /**
+     * Prints out whole memory.
+     */
     public void dump() {
         dump(0x0000);
     }
 
+    /**
+     * Prints out the memory from specified location.
+     * @param from starting location
+     */
     public void dump(int from) {
         dump(from, 0xFFFF);
     }
 
+    /**
+     * Prints out the memory from specified range.
+     * @param from starting location
+     * @param to ending location
+     */
     public void dump(int from, int to) {
         for (int a = from; a <= to; a++) {
             System.out.println(line(a));
@@ -141,6 +226,11 @@ public class Monitor {
         }
     }
 
+    /**
+     * Formats specified address into assembly language.
+     * @param address the memory location
+     * @return assembly language line
+     */
     public String walk(int address) {
         StringBuilder sb = new StringBuilder();
         byte op = peek.get((short) address);

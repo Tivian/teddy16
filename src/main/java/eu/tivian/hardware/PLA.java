@@ -4,18 +4,40 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-// based on custom PLA from C16
-// http://www.zimmers.net/anonftp/pub/cbm/firmware/computers/plus4/pla.txt
-// http://www.zimmers.net/anonftp/pub/cbm/firmware/computers/plus4/pla.c
+/**
+ * Programmable logic array.
+ *
+ * @author Paweł Kania
+ * @since 2019-11-06
+ * @see <a href="http://www.zimmers.net/anonftp/pub/cbm/firmware/computers/plus4/pla.txt">
+ *     Information about PLA inside C16</a>
+ * @see <a href="http://www.zimmers.net/anonftp/pub/cbm/firmware/computers/plus4/pla.c">
+ *     PLA souce code written in C</a>
+ */
 public class PLA {
+    /**
+     * Input pins.
+     */
     public final List<Pin> input;
+    /**
+     * Output pins.
+     */
     public final List<Pin> output;
 
+    /**
+     * Initializes inner logic of the PLA chip.
+     */
     public PLA() {
         this(16, 8);
     }
 
-    public PLA(int inputs, int outputs) {
+    /**
+     * Initializes PLA with custom number of inputs and outputs.
+     *
+     * @param inputs number of inputs
+     * @param outputs number of outputs
+     */
+    private PLA(int inputs, int outputs) {
         List<Pin> temp = new ArrayList<>();
         for (int i = 0; i < inputs; i++) {
             Pin pin = new Pin("I" + i, Pin.Direction.INPUT);
@@ -32,6 +54,11 @@ public class PLA {
         update();
     }
 
+    /**
+     * Changes the state of output pins according to the input pins.
+     * @see <a href="https://www.pagetable.com/docs/ted/TED%20System%20Hardware%20Manual.pdf#page=38">
+     *     C16 PLA truth table</a>
+     */
     private void update() {
         boolean[] in = new boolean[input.size()];
         for (int i = 0; i < in.length; i++)

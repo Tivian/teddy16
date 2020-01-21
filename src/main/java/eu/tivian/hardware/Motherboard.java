@@ -8,46 +8,147 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Motherboard of the Commodore 16.
+ * <br><img src="doc-files/motherboard.jpg" alt="C16 motherboard" width="90%">
+ *
+ * @author Paweł Kania
+ * @since 2019-11-06
+ * @see <a href="http://www.zimmers.net/anonftp/pub/cbm/schematics/computers/plus4/C16_Service_Manual_314001-03_(1984_Oct).pdf">
+ *     C16 Service Manual</a>
+ */
 public class Motherboard {
-    // Commodore 16 specific chips
-    private final MOS8501 cpu;       // U2
-    private final TED     ted;       // U1
-    private final RAM     ram1;      // U5
-    private final RAM     ram2;      // U6
-    private final ROM     basic;     // U3
-    private final ROM     kernal;    // U4
-    private final PLA     pla;       // U16
+    /**
+     * {@link MOS8501} - CPU of the Commodore 16. U2
+     */
+    private final MOS8501 cpu;
+    /**
+     * TED - Video chip. U1
+     */
+    private final TED     ted;
+    /**
+     * RAM chip containing low nibbles. U5
+     */
+    private final RAM     ram1;
+    /**
+     * RAM chip containing high nibbles. U6
+     */
+    private final RAM     ram2;
+    /**
+     * BASIC ROM. U3
+     */
+    private final ROM     basic;
+    /**
+     * KERNAL ROM. U4
+     */
+    private final ROM     kernal;
+    /**
+     * Custom-made PLA for C16. U16
+     */
+    private final PLA     pla;
 
     // Logic chips
-    private final SystemClock     clock;     // Y1
-    private final MonostableTimer timer;     // U10
-    private final IC74LS257       ramMux1;   // U7
-    private final IC74LS257       ramMux2;   // U8
-    private final IC7406          invhex;    // U9
-    private final IC74LS125       buffer;    // U11
-    private final IC74LS02        norGate;   // U12
-    private final IC74LS175       flipFlop;  // U15
-    private final IC74LS139       demux;     // U14
-    private final MOS6529         keyPort;   // U13
+    /**
+     * Quartz crystal for clock generation. Y1
+     */
+    private final SystemClock     clock;
+    /**
+     * NE555 timer. U10
+     */
+    private final MonostableTimer timer;
+    /**
+     * Low nibble RAM multiplexer. U7
+     */
+    private final IC74LS257       ramMux1;
+    /**
+     * High nibble RAM multiplexer. U8
+     */
+    private final IC74LS257       ramMux2;
+    /**
+     * Hex inverter. Mainly for buffering. U9
+     */
+    private final IC7406          invhex;
+    /**
+     * Tri-state buffer. U11
+     */
+    private final IC74LS125       buffer;
+    /**
+     * Quad NOR gates. U12
+     */
+    private final IC74LS02        norGate;
+    /**
+     * Chip select flip-flops. U15
+     */
+    private final IC74LS175       flipFlop;
+    /**
+     * Chip select demultiplexer. U14
+     */
+    private final IC74LS139       demux;
+    /**
+     * Keyboard matrix buffer. U13
+     */
+    private final MOS6529         keyPort;
 
-    // Physical layer
+    /**
+     * Keyboard.
+     */
     private final Keyboard keyboard;
 
+    /**
+     * Expansion port. CN1
+     */
     private final Connector expansion;
+    /**
+     * Cassette port. CN3
+     */
     private final Connector cassette;
+    /**
+     * First joystick. CN4
+     */
     private final Connector joy1;
+    /**
+     * Second joystick. CN5
+     */
     private final Connector joy2;
+    /**
+     * Serial port connector. CN7
+     */
     private final Connector serial;
+    /**
+     * Power connector. CN8
+     */
     private final Connector power;
 
+    /**
+     * Global power pin.
+     */
     private final Pin VCC;
+    /**
+     * Global ground pin.
+     */
     private final Pin GND;
 
+    /**
+     * Power switch. SW1
+     */
     private final Switch powerSw;
+    /**
+     * Reset switch. SW2
+     */
     private final Switch resetSw;
 
+    /**
+     * Main loop flag.
+     */
     private boolean running = true;
 
+    /**
+     * Initializes all motherboard components and connects them together.
+     *
+     * <br><img src="doc-files/c16_251788_1.jpg" alt="C16 schematic 1/3" width="75%">
+     * <br><img src="doc-files/c16_251788_2.jpg" alt="C16 schematic 2/3" width="75%">
+     * <br><img src="doc-files/c16_251788_3.jpg" alt="C16 schematic 3/3" width="75%">
+     */
     public Motherboard() {
         this.cpu    = new MOS8501();
         this.ted    = new TED();
@@ -252,6 +353,9 @@ public class Motherboard {
         clock.frequency(28.28800 * SI.MEGA);
     }
 
+    /**
+     * Turns on the power on the motherboard.
+     */
     public void start() {
         if (Logger.ENABLE)
             Logger.info("Switching on...");
@@ -260,6 +364,9 @@ public class Motherboard {
         loop();
     }
 
+    /**
+     * Cuts off the power from the motherboard.
+     */
     public void stop() {
         if (Logger.ENABLE)
             Logger.info("Switching off...");
@@ -268,10 +375,12 @@ public class Motherboard {
         clock.clear();
     }
 
+    /**
+     * Mail emulation loop.
+     */
     private void loop() {
         Pin.Level old = Pin.Level.LOW;
 
-        //log();
         while (running) {
             clock.pulse();
             if (Logger.ENABLE) {
@@ -282,44 +391,13 @@ public class Motherboard {
                     old = current;
                 }
             }
-
-            //if ((cpu.PC & 0xFFFF) >= 0xFC2A && (cpu.PC & 0xFFFF) <= 0xFC30)
-                //log();
         }
-        //log();
     }
 
-    // TODO add CPU registry log
-    private void log() {
-        /*if (clock.halfcycle() == 0) {
-            System.out.println("  ___________________________________________________________________________________________________________");
-            System.out.println(" | halfcycle | PHI |  CPU | ROM | RAM |  RAS |  CAS |  MUX | RW | ADDR | DATA |     RAM STATE     | MNEMONIC |  PC  SR AC XR YR SP | MEMORY DUMP");
-            System.out.println(" |-----------|-----|------|-----|-----|------|------|------|----|------|------|-------------------|----------|---------------------|");
-        }*/
-
-        if ((clock.halfcycle() % 2) == 1) {
-            boolean romAccess = basic.cs.get(0).level() == Pin.Level.LOW || kernal.cs.get(0).level() == Pin.Level.LOW;
-
-            System.out.printf(" | %9d |  %2d | %4s |  %c  |  %c  | %4s | %4s | %4s | %2s | %04X |  %02X  |  %7s[%02X, %02X]  |  %s[%d]  | %s | %s | \n",
-                    clock.halfcycle() / 2, (clock.halfcycle() / 2) & 0xF, cpu.phi0.level(),
-                    romAccess ? '+' : ' ', romAccess ? ' ' : '+',
-                    ted.ras.level(), ted.cas.level(), ted.mux.level(), cpu.rw.level() == Pin.Level.HIGH ? "R " : " W",
-                    cpu.address.value(), cpu.data.value(), ram1.state(), ram1.column, ram1.row, cpu.mnemonic(),
-                    cpu.decodeCycle, cpu.reg(), RAMDump());
-        }
-
-        //if (!running)
-            //System.out.println(" |___________|_____|______|_____|_____|______|______|______|____|______|______|___________|__________|");
-        //"  ____________________________________________________________\n"
-        //" | halfcycle | PHI |  CPU |  RAS |  CAS |  MUX | RW | ADDR | DATA |\n"
-        //" |-----------|-----|------|------|------|------|----|------|------|\n"
-        //
-        //" | %9d |  %2d | %4s | %4s | %4s | %4s |  %1c | %04X |  %02X  |\n"
-        //System.out.printf(" %8d[%04X] ", cpu.cycles(), cpu.PC);
-        //System.out.print(cpu.rw.level() == Pin.Level.HIGH ? "Read from" : "Write to");
-        //System.out.printf(" %04X [%02X]\n", cpu.address.value(), cpu.data.value());
-    }
-
+    /**
+     * Dumps the content of RAM memory into the string.
+     * @return string of changed memory cells
+     */
     private String RAMDump() {
         List<String> mem = new ArrayList<>();
 
@@ -331,6 +409,10 @@ public class Motherboard {
         return "[ " + String.join(", ", mem) + " ]";
     }
 
+    /**
+     * Sets video renderer.
+     * @param fx the video renderer
+     */
     public void render(TED.Video fx) {
         ted.render(fx);
     }

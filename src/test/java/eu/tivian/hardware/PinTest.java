@@ -6,7 +6,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Test suit for pin.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see Pin
+ */
 class PinTest {
+    /**
+     * Checks if connecting two pins works correctly.
+     */
     @Test
     void connect() {
         Pin A = new Pin("A", Pin.Direction.OUTPUT);
@@ -23,6 +33,9 @@ class PinTest {
         assertEquals(A.wire(), B.wire());
     }
 
+    /**
+     * Checks if disconnecting pins make them correctly disconnected.
+     */
     @Test
     void disconnect() {
         Pin A = new Pin("A", Pin.Direction.OUTPUT);
@@ -58,6 +71,9 @@ class PinTest {
         assertEquals(Pin.Level.LOW, B.level());
     }
 
+    /**
+     * Checks if the pin behaves correctly after the direction of the pin is changed
+     */
     @Test
     void direction() {
         Pin A = new Pin(Pin.Direction.OUTPUT);
@@ -117,6 +133,9 @@ class PinTest {
 
     }
 
+    /**
+     * Checks if the pin reacts accordingly to the change of the level.
+     */
     @Test
     void level() {
         Pin out = new Pin(Pin.Direction.OUTPUT);
@@ -141,6 +160,9 @@ class PinTest {
         assertEquals(Pin.Level.HIGH, in.level());
     }
 
+    /**
+     * Checks if pulling-up the pin works.
+     */
     @Test
     void pullUp() {
         Pin A = new Pin(Pin.Direction.OUTPUT);
@@ -161,6 +183,9 @@ class PinTest {
         assertEquals(Pin.Level.HIGH, B.level());
     }
 
+    /**
+     * Checks if updating the pins yields expected behavior.
+     */
     @Test
     void update() {
         AtomicBoolean changedA = new AtomicBoolean(false);
@@ -187,10 +212,13 @@ class PinTest {
         assertTrue(changedC.get());
     }
 
+    /**
+     * Check if power and ground pins behaves correctly.
+     */
     @Test
     void power() {
-        Pin VCC = new Pin.Power();
-        Pin GND = new Pin.Ground();
+        Pin VCC = Pin.VCC;
+        Pin GND = Pin.GND;
 
         assertEquals(Pin.Level.HIGH, VCC.level());
         assertEquals(Pin.Level.LOW , GND.level());
@@ -201,6 +229,9 @@ class PinTest {
         assertEquals(Pin.Level.LOW , GND.level());
     }
 
+    /**
+     * Checks if connecting multiple pins together works as it should.
+     */
     @Test
     void multiple() {
         Pin A = new Pin("A", Pin.Direction.OUTPUT);

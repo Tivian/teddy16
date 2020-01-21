@@ -6,7 +6,17 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Test suite for the bus.
+ *
+ * @author Paweł Kania
+ * @since 2019-12-03
+ * @see Bus
+ */
 class BusTest {
+    /**
+     * Checks if connecting two buses yields correct values.
+     */
     @Test
     void connect() {
         Bus output = new Bus("out", "O", Pin.Direction.OUTPUT, 16);
@@ -21,6 +31,9 @@ class BusTest {
         }
     }
 
+    /**
+     * Checks if change at one end makes appropriate changes on the other end.
+     */
     @Test
     void change() {
         AtomicLong result = new AtomicLong();
