@@ -243,32 +243,32 @@ public class MOS8501 implements CPU {
     /**
      * Status registry.
      */
-    public byte  SR = 0b00100000;
+    protected byte  SR = 0b00100000;
     /**
      * Program counter.
      */
-    public short PC = 0x0000;
+    protected short PC = 0x0000;
     /**
      * Accumulator.
      */
-    public byte  AC = 0x00;
+    protected byte  AC = 0x00;
     /**
      * X index registry.
      */
-    public byte  XR = 0x00;
+    protected byte  XR = 0x00;
     /**
      * Y index registry.
      */
-    public byte  YR = 0x00;
+    protected byte  YR = 0x00;
     /**
      * Stack pointer.
      */
-    public byte  SP = 0x00;
+    protected byte  SP = 0x00;
 
     /**
      * CPU status registry singleton.
      */
-    public final Status status = new Status();
+    protected final Status status = new Status();
 
     /**
      * Clock input. Pin 1
