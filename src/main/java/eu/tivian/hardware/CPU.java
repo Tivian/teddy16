@@ -33,6 +33,12 @@ public interface CPU {
     String mnemonic();
 
     /**
+     * Returns currently processed opcode.
+     * @return currently processed opcode
+     */
+    byte opcode();
+
+    /**
      * Returns CPU registers in string format.
      * @return CPU registers in string format
      */

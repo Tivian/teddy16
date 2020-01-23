@@ -507,6 +507,20 @@ public class MOS8501 implements CPU {
     };
 
     /**
+     * List of undocumented instructions.
+     * <br>In most cases if CPU wants to execute any of them, then probably the CPU doesn't behave as it should.
+     */
+    protected static final List<String> undocumented = Arrays.asList(
+        "ANC", "ANE", "ARR", "ASR", "DCP", "ISB", "LAS", "LAX", "LXA", "RLA", "RRA", "SAX", "SBX", "SHA", "SHS", "SHX",
+        "SHY", "SLO", "SRE"
+    );
+
+    /**
+     * Dictates if the use of undocumented instruction will cause exception.
+     */
+    protected static boolean useUndocumented = false;
+
+    /**
      * The addressing modes.
      *
      * @see <a href="http://archive.6502.org/books/mcs6500_family_programming_manual.pdf">
@@ -1477,9 +1491,7 @@ public class MOS8501 implements CPU {
         put("PHA", () -> push(AC));
         put("PHP", () -> push((byte) (SR | Status.Bit.O | Status.Bit.B)));
         put("PLA", () -> pull(data -> status.determineNZ(AC = data)));
-        //put("PLA", () -> status.determineNZ(AC = pull()));
         put("PLP", () -> pull(data -> SR = (byte) (data | Status.Bit.O)));
-        //put("PLP", () -> SR = (byte) (pull() | Status.Bit.O));
         put("ROL", () -> { // rotate left
             result = (short) (((operand & 0xFF) << 1) | status.carry());
             status.carry((operand & (1 << 7)) != 0);
@@ -1537,7 +1549,7 @@ public class MOS8501 implements CPU {
 
         // undocumented opcodes
         // unstable instructions tested and mimicked from my personal C64
-        /*put("ANC", () -> { // AND #immediate, copy accu-bit 7 to carry
+        put("ANC", () -> { // AND #immediate, copy accu-bit 7 to carry
             status.determineNZ(AC &= operand);
             status.carry((AC & (1 << 7)) != 0);
         });
@@ -1635,7 +1647,7 @@ public class MOS8501 implements CPU {
             status.determineNZ(result);
             status.determineCarry(result);
             AC = (byte) result;
-        });*/
+        });
     }};
 
     /**
@@ -1782,7 +1794,10 @@ public class MOS8501 implements CPU {
 
             if (Logger.ENABLE)
                 Logger.info(String.format("Fetched %s with %s addressing",
-                        mnemonic[opcode & 0xFF], Monitor.addressing[opcode & 0xFF]));
+                        mnemonic[opcode & 0xFF], Monitor.addressing.get(opcode & 0xFF)));
+
+            if (!useUndocumented && undocumented.contains(mnemonic[opcode & 0xFF]))
+                throw new RuntimeException("Undocumented instructions support is disabled!");
 
             stage = Stage.DECODE;
         }
@@ -1888,6 +1903,14 @@ public class MOS8501 implements CPU {
     }
 
     /**
+     * Returns currently processed opcode.
+     * @return currently processed opcode
+     */
+    public byte opcode() {
+        return opcode;
+    }
+
+    /**
      * Returns mnemonic of current opcode.
      * @return the mnemonic of current opcode
      */
@@ -1897,11 +1920,11 @@ public class MOS8501 implements CPU {
     }
 
     /**
-     * Returns processor status registry in string format.
-     * @return the CPU status registry
+     * Returns all processor registers in string format.
+     * @return registers in string format
      */
     public String reg() {
-        return String.format("%04X %02X %02X %02X %02X %02X", PC, SR, AC, XR, YR, SP);
+        return String.format("%02X %02X %02X %02X %02X", SR, AC, XR, YR, SP);
     }
 
     /**
@@ -1912,7 +1935,7 @@ public class MOS8501 implements CPU {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("  PC  SR AC XR YR SP  NV-BDIZC\n");
-        sb.append(String.format(";%s  ", reg()));
+        sb.append(String.format(";%04X %s  ", PC, reg()));
         sb.append(String.format("%8s", Integer.toString(SR & 0xFF, 2)).replace(' ', '0'));
         if (halt)
             sb.append("\n\tThe CPU is halted!");

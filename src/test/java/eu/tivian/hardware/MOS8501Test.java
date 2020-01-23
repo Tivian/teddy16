@@ -33,9 +33,9 @@ class MOS8501Test {
     @Test
     void step() {
         SimpleCPU cpu = new SimpleCPU();
-        Pin reset = new Pin(Pin.Direction.OUTPUT, Pin.Level.HIGH);
-        Pin irq = new Pin(Pin.Direction.OUTPUT, Pin.Level.HIGH);
-        Pin clock = new Pin(Pin.Direction.OUTPUT);
+        //Pin reset = new Pin(Pin.Direction.OUTPUT, Pin.Level.HIGH);
+        //Pin irq = new Pin(Pin.Direction.OUTPUT, Pin.Level.HIGH);
+        //Pin clock = new Pin(Pin.Direction.OUTPUT);
 
         /*Monitor monitor = new Monitor(
             addr -> cpu.memory[addr & 0xFFFF],
@@ -45,9 +45,9 @@ class MOS8501Test {
 
         //Path path = Paths.get("C:/Users/Pawel/Desktop/good.txt");
 
-        cpu.reset.connect(reset);
-        cpu.irq.connect(irq);
-        cpu.phi0.connect(clock);
+        //cpu.reset.connect(reset);
+        //cpu.irq.connect(irq);
+        //cpu.phi0.connect(clock);
 
         for (Map.Entry<String, int[]> entry : testCases.entrySet()) {
             String fileName = entry.getKey();
@@ -68,10 +68,10 @@ class MOS8501Test {
             short last = current;
 
             while (cpu.counter() != end && counter < 16 && cpu.cycles() < 1e9) {
-                clock.level(clock.level() == Pin.Level.LOW ? Pin.Level.HIGH : Pin.Level.LOW);
-                if (clock.level() == Pin.Level.HIGH)
-                    continue;
-                //cpu.step();
+                //clock.level(clock.level() == Pin.Level.LOW ? Pin.Level.HIGH : Pin.Level.LOW);
+                //if (clock.level() == Pin.Level.HIGH)
+                    //continue;
+                cpu.step();
 
                 current = cpu.lastOpcodePosition();
                 //System.out.printf("%04X %16d\n", cpu.PC, cpu.cycles());

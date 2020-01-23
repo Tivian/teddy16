@@ -17,7 +17,7 @@ public class Logger {
     /**
      * Dictates if the logger will be activated.
      */
-    public static final boolean ENABLE = true;
+    public static boolean ENABLE = false;
     /**
      * If any of the ignored methods occurs in stack trace then logging shouldn't happen.
      */

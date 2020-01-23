@@ -3,6 +3,7 @@ package eu.tivian;
 import eu.tivian.gui.MainWindow;
 import eu.tivian.hardware.Motherboard;
 import eu.tivian.other.Logger;
+import eu.tivian.software.Monitor;
 
 import javax.swing.*;
 
@@ -72,10 +73,19 @@ public class Main {
 
             switch (args[i].charAt(1)) {
                 case 'l':
+                    Logger.ENABLE = true;
                     if (i < args.length - 1 && !args[i + 1].startsWith("-"))
                         Logger.redirect(args[++i]);
-                    //else
-                        //Logger.enable();
+                    break;
+
+                case 'm':
+                    Monitor.start();
+                    System.exit(0);
+                    break;
+
+                case 'v':
+                    System.out.println("Teddy16 0.1\n2020-01-21\t by Paul Kania");
+                    System.exit(0);
                     break;
             }
         }
